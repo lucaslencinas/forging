@@ -12,13 +12,20 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 - ✅ Web UI for uploading and viewing results
 - ✅ CLI tool for quick testing (`python analyze.py replay.aoe2record`)
 
+### Live Demo
+
+| Service | URL |
+|---------|-----|
+| Frontend | https://forging-frontend-nht57oxpca-uc.a.run.app |
+| Backend API | https://forging-backend-nht57oxpca-uc.a.run.app |
+
 ### What's Missing / TODO
 - ⬜ Video upload and multimodal analysis
 - ⬜ User accounts and history
 - ⬜ More detailed CS2 analysis
 - ⬜ Build order visualization
 - ⬜ Comparison with pro player benchmarks
-- ⬜ Production deployment
+- ✅ ~~Production deployment~~
 
 ## Supported Games
 
