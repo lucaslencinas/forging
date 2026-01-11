@@ -1,6 +1,24 @@
 # Forging 🔥
 
-AI-powered game analysis for esports improvement. Upload your replay files and get personalized coaching feedback powered by Gemini AI.
+AI-powered game analysis for esports improvement. Upload your replay files and get personalized coaching feedback powered by AI.
+
+## Current Status
+
+### What's Working
+- ✅ AoE2 replay parsing (`.aoe2record` files)
+- ✅ CS2 demo parsing (`.dem` files) - basic support
+- ✅ LLM analysis with multi-provider support (Gemini, Claude, OpenAI)
+- ✅ 3-5 actionable coaching tips per analysis
+- ✅ Web UI for uploading and viewing results
+- ✅ CLI tool for quick testing (`python analyze.py replay.aoe2record`)
+
+### What's Missing / TODO
+- ⬜ Video upload and multimodal analysis
+- ⬜ User accounts and history
+- ⬜ More detailed CS2 analysis
+- ⬜ Build order visualization
+- ⬜ Comparison with pro player benchmarks
+- ⬜ Production deployment
 
 ## Supported Games
 
@@ -10,16 +28,17 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 ## Features
 
 - 📁 Upload replay files for instant AI analysis
-- 🎥 Optional video upload for enhanced multimodal analysis
-- 🎯 Game-specific coaching feedback
+- 🤖 Multi-provider LLM support (Gemini, Claude, OpenAI) with automatic fallback
+- 🎯 Game-specific coaching feedback (3-5 actionable tips)
 - 📊 Build order analysis, timing comparisons, and improvement suggestions
 - ⚡ Fast parsing with battle-tested libraries (mgz, demoparser2)
+- 🖥️ CLI tool for testing and automation
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  Frontend (Next.js)                              Deploy: Cloud Run      │
+│  Frontend (Next.js 16)                           Deploy: Cloud Run      │
 │  • File upload UI                                                       │
 │  • Analysis results display                                             │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -28,17 +47,16 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  Backend (Python FastAPI)                        Deploy: Cloud Run      │
 │  • Replay parsing (mgz, demoparser2)                                    │
-│  • Gemini AI integration                                                │
-│  • GCS signed URLs for video upload                                     │
+│  • LLM integration (Gemini/Claude/OpenAI)                               │
 └─────────────────────────────────────────────────────────────────────────┘
                                    │
-              ┌────────────────────┴────────────────────┐
-              ▼                                         ▼
-┌──────────────────────────┐              ┌──────────────────────────┐
-│  Google Cloud Storage    │              │  Gemini API              │
-│  • Video uploads         │──────────────│  • Multimodal analysis   │
-│  • Auto-cleanup (24h)    │              │  • Coaching feedback     │
-└──────────────────────────┘              └──────────────────────────┘
+                                   ▼
+                    ┌──────────────────────────┐
+                    │  LLM Provider            │
+                    │  • Gemini (default)      │
+                    │  • Claude (fallback)     │
+                    │  • OpenAI (fallback)     │
+                    └──────────────────────────┘
 ```
 
 ## Quick Start
@@ -48,7 +66,7 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 - Node.js 20+
 - Python 3.11+
 - pnpm
-- Google Cloud account (for deployment)
+- At least one LLM API key (Gemini, Claude, or OpenAI)
 
 ### Local Development
 
@@ -65,7 +83,7 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    pip install -r requirements.txt
    cp .env.example .env
-   # Edit .env and add your GEMINI_API_KEY
+   # Edit .env and add your API keys
    ```
 
 3. **Run the backend**
@@ -87,14 +105,42 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 
 6. **Open http://localhost:3000**
 
+### CLI Usage
+
+```bash
+cd backend
+source venv/bin/activate
+
+# Parse and analyze a replay
+python analyze.py path/to/replay.aoe2record
+
+# Use a specific provider
+python analyze.py replay.aoe2record --provider claude
+
+# Parse only (no LLM call)
+python analyze.py replay.aoe2record --parse-only
+
+# List available providers
+python analyze.py --list-providers
+```
+
 ### Environment Variables
 
 #### Backend (`backend/.env`)
-```
+```bash
+# LLM API Keys (at least one required)
 GEMINI_API_KEY=your_gemini_api_key
-GOOGLE_CLOUD_PROJECT=your-project-id
-GCS_BUCKET_NAME=forging-uploads
+ANTHROPIC_API_KEY=your_anthropic_api_key  # optional
+OPENAI_API_KEY=your_openai_api_key        # optional
+
+# Enable/disable providers
+GEMINI_ENABLED=true
+CLAUDE_ENABLED=true
+OPENAI_ENABLED=true
+
+# Server config
 ALLOWED_ORIGINS=http://localhost:3000
+LOG_LEVEL=INFO
 ```
 
 #### Frontend (`frontend/.env.local`)
@@ -102,47 +148,11 @@ ALLOWED_ORIGINS=http://localhost:3000
 NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
 
-## Deployment
-
-### Google Cloud Setup
-
-1. **Create a Google Cloud project**
-   ```bash
-   gcloud projects create forging-app
-   gcloud config set project forging-app
-   ```
-
-2. **Enable required APIs**
-   ```bash
-   gcloud services enable run.googleapis.com
-   gcloud services enable storage.googleapis.com
-   gcloud services enable cloudbuild.googleapis.com
-   ```
-
-3. **Set up GCS bucket**
-   ```bash
-   ./scripts/setup-gcs.sh
-   ```
-
-4. **Deploy backend**
-   ```bash
-   ./scripts/deploy-backend.sh
-   ```
-
-5. **Deploy frontend to Cloud Run**
-   ```bash
-   cd frontend
-   gcloud run deploy forging-frontend \
-     --source . \
-     --region us-central1 \
-     --allow-unauthenticated
-   ```
-
 ## Tech Stack
 
-- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
-- **Backend**: Python, FastAPI, uvicorn
-- **AI**: Google Gemini API
+- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS 4
+- **Backend**: Python 3.12, FastAPI, uvicorn
+- **AI**: Gemini, Claude, OpenAI (with automatic fallback)
 - **Parsing**:
   - AoE2: [mgz](https://github.com/happyleavesaoc/aoc-mgz)
   - CS2: [demoparser2](https://github.com/LaihoE/demoparser), [awpy](https://github.com/pnxenopoulos/awpy)
@@ -155,15 +165,23 @@ forging/
 ├── frontend/               # Next.js application
 │   ├── src/
 │   │   ├── app/           # App router pages
-│   │   └── components/    # React components
+│   │   ├── components/    # React components
+│   │   └── types/         # Generated API types
 │   └── package.json
 ├── backend/                # Python FastAPI application
 │   ├── main.py            # API entry point
-│   ├── services/          # Business logic
-│   │   ├── aoe2_parser.py
-│   │   ├── cs2_parser.py
-│   │   ├── analyzer.py
-│   │   └── storage.py
+│   ├── models.py          # Pydantic models
+│   ├── analyze.py         # CLI tool
+│   ├── services/
+│   │   ├── aoe2_parser.py # AoE2 replay parsing
+│   │   ├── cs2_parser.py  # CS2 demo parsing
+│   │   ├── analyzer.py    # LLM analysis orchestration
+│   │   └── llm/           # LLM provider abstraction
+│   │       ├── base.py    # Abstract provider class
+│   │       ├── gemini.py
+│   │       ├── claude.py
+│   │       ├── openai.py
+│   │       └── factory.py # Provider auto-selection
 │   └── requirements.txt
 ├── scripts/               # Deployment scripts
 └── deploy/                # Cloud Run configs
