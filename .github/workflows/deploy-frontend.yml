@@ -12,6 +12,7 @@ env:
   REGION: us-central1
   WORKLOAD_IDENTITY_PROVIDER: projects/268399199868/locations/global/workloadIdentityPools/github-pool/providers/github-provider
   SERVICE_ACCOUNT: github-actions@project-48dfd3a0-58cd-43e5-ae7.iam.gserviceaccount.com
+  BACKEND_URL: https://forging-backend-nht57oxpca-uc.a.run.app
 
 jobs:
   deploy:
@@ -35,7 +36,10 @@ jobs:
 
       - name: Build and Push
         run: |
-          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/forging/${{ env.SERVICE_NAME }}:${{ github.sha }} ./frontend
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL=${{ env.BACKEND_URL }} \
+            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/forging/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            ./frontend
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/forging/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
       - name: Deploy to Cloud Run
