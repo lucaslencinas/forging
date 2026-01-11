@@ -11,6 +11,8 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 - ✅ 3-5 actionable coaching tips per analysis
 - ✅ Web UI for uploading and viewing results
 - ✅ CLI tool for quick testing (`python analyze.py replay.aoe2record`)
+- ✅ Video upload to GCS with progress tracking
+- ✅ Automatic CI/CD deployment via GitHub Actions
 
 ### Live Demo
 
@@ -20,12 +22,14 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 | Backend API | https://forging-backend-nht57oxpca-uc.a.run.app |
 
 ### What's Missing / TODO
-- ⬜ Video upload and multimodal analysis
+- ⬜ Video analysis with timestamped coaching tips (Milestone 3)
+- ⬜ Video player with clickable timestamps
 - ⬜ User accounts and history
 - ⬜ More detailed CS2 analysis
 - ⬜ Build order visualization
 - ⬜ Comparison with pro player benchmarks
 - ✅ ~~Production deployment~~
+- ✅ ~~Video upload infrastructure~~
 
 ## Supported Games
 
@@ -35,11 +39,13 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 ## Features
 
 - 📁 Upload replay files for instant AI analysis
+- 🎥 Video upload with progress tracking (MP4, max 500MB, 15 min)
 - 🤖 Multi-provider LLM support (Gemini, Claude, OpenAI) with automatic fallback
 - 🎯 Game-specific coaching feedback (3-5 actionable tips)
 - 📊 Build order analysis, timing comparisons, and improvement suggestions
 - ⚡ Fast parsing with battle-tested libraries (mgz, demoparser2)
 - 🖥️ CLI tool for testing and automation
+- 🚀 Auto-deploy to Cloud Run via GitHub Actions
 
 ## Architecture
 
@@ -47,6 +53,7 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  Frontend (Next.js 16)                           Deploy: Cloud Run      │
 │  • File upload UI                                                       │
+│  • Video upload with progress bar                                       │
 │  • Analysis results display                                             │
 └─────────────────────────────────────────────────────────────────────────┘
                                    │
@@ -55,15 +62,17 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 │  Backend (Python FastAPI)                        Deploy: Cloud Run      │
 │  • Replay parsing (mgz, demoparser2)                                    │
 │  • LLM integration (Gemini/Claude/OpenAI)                               │
+│  • GCS signed URL generation                                            │
 └─────────────────────────────────────────────────────────────────────────┘
                                    │
-                                   ▼
-                    ┌──────────────────────────┐
-                    │  LLM Provider            │
-                    │  • Gemini (default)      │
-                    │  • Claude (fallback)     │
-                    │  • OpenAI (fallback)     │
-                    └──────────────────────────┘
+                    ┌──────────────┴──────────────┐
+                    ▼                             ▼
+     ┌──────────────────────────┐  ┌──────────────────────────┐
+     │  LLM Provider            │  │  Google Cloud Storage    │
+     │  • Gemini (default)      │  │  • Video uploads         │
+     │  • Claude (fallback)     │  │  • Signed URLs           │
+     │  • OpenAI (fallback)     │  │  • 24h auto-delete       │
+     └──────────────────────────┘  └──────────────────────────┘
 ```
 
 ## Quick Start
@@ -148,6 +157,10 @@ OPENAI_ENABLED=true
 # Server config
 ALLOWED_ORIGINS=http://localhost:3000
 LOG_LEVEL=INFO
+
+# GCS config (for video uploads)
+GCS_BUCKET_NAME=forging-uploads
+GCS_SIGNING_SERVICE_ACCOUNT=your-sa@project.iam.gserviceaccount.com  # optional, for local dev
 ```
 
 #### Frontend (`frontend/.env.local`)
@@ -183,6 +196,7 @@ forging/
 │   │   ├── aoe2_parser.py # AoE2 replay parsing
 │   │   ├── cs2_parser.py  # CS2 demo parsing
 │   │   ├── analyzer.py    # LLM analysis orchestration
+│   │   ├── gcs.py         # GCS signed URL generation
 │   │   └── llm/           # LLM provider abstraction
 │   │       ├── base.py    # Abstract provider class
 │   │       ├── gemini.py
@@ -190,8 +204,11 @@ forging/
 │   │       ├── openai.py
 │   │       └── factory.py # Provider auto-selection
 │   └── requirements.txt
+├── .github/workflows/     # CI/CD pipelines
+│   ├── deploy-backend.yml
+│   └── deploy-frontend.yml
 ├── scripts/               # Deployment scripts
-└── deploy/                # Cloud Run configs
+└── deploy/                # GCS CORS and lifecycle configs
 ```
 
 ## License

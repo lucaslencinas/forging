@@ -7,9 +7,12 @@ import uuid
 from datetime import timedelta
 from typing import Optional
 
+import subprocess
+
 from google.cloud import storage
 from google.auth import default, impersonated_credentials
 from google.auth.transport import requests as google_requests
+from google.oauth2.credentials import Credentials as OAuthCredentials
 
 logger = logging.getLogger(__name__)
 
@@ -56,26 +59,55 @@ def get_signing_credentials():
         return _signing_credentials
 
     # For user credentials (local dev), use impersonation
-    # This requires the user to have roles/iam.serviceAccountTokenCreator on the target SA
+    # ADC credentials differ from gcloud credentials, so we use gcloud's token directly
     target_service_account = os.getenv(
         "GCS_SIGNING_SERVICE_ACCOUNT",
         "268399199868-compute@developer.gserviceaccount.com"
     )
 
     try:
-        logger.info(f"Using impersonated credentials with SA: {target_service_account}")
-        _signing_credentials = impersonated_credentials.Credentials(
+        # First try with ADC credentials
+        logger.info(f"Trying impersonated credentials with SA: {target_service_account}")
+        impersonated = impersonated_credentials.Credentials(
             source_credentials=source_credentials,
             target_principal=target_service_account,
             target_scopes=['https://www.googleapis.com/auth/cloud-platform'],
         )
+        # Test if signing works
+        impersonated.sign_bytes(b"test")
+        logger.info("ADC impersonation works")
+        _signing_credentials = impersonated
         return _signing_credentials
     except Exception as e:
-        logger.warning(f"Could not create impersonated credentials: {e}")
-        raise ValueError(
-            "Cannot sign URLs. Ensure you have roles/iam.serviceAccountTokenCreator "
-            f"on {target_service_account}"
+        logger.warning(f"ADC impersonation failed: {e}")
+
+    # Fallback: Use gcloud CLI token (works when gcloud has different auth than ADC)
+    try:
+        logger.info("Falling back to gcloud CLI credentials")
+        result = subprocess.run(
+            ['gcloud', 'auth', 'print-access-token'],
+            capture_output=True, text=True, timeout=10
         )
+        if result.returncode == 0:
+            access_token = result.stdout.strip()
+            gcloud_creds = OAuthCredentials(token=access_token)
+            impersonated = impersonated_credentials.Credentials(
+                source_credentials=gcloud_creds,
+                target_principal=target_service_account,
+                target_scopes=['https://www.googleapis.com/auth/cloud-platform'],
+            )
+            # Test if signing works
+            impersonated.sign_bytes(b"test")
+            logger.info("gcloud CLI impersonation works")
+            _signing_credentials = impersonated
+            return _signing_credentials
+    except Exception as e:
+        logger.warning(f"gcloud CLI fallback failed: {e}")
+
+    raise ValueError(
+        "Cannot sign URLs. Ensure you have roles/iam.serviceAccountTokenCreator "
+        f"on {target_service_account}"
+    )
 
 
 def generate_upload_url(

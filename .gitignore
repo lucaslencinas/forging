@@ -41,3 +41,8 @@ htmlcov/
 
 # Misc
 *.pem
+
+# Service account keys (never commit these!)
+*-key.json
+*-credentials.json
+service-account*.json
