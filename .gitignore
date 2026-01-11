@@ -1,0 +1,43 @@
+# Replays
+sample-replays/
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Environment files
+.env
+.env.local
+.env*.local
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Misc
+*.pem
