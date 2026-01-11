@@ -1,0 +1,20 @@
+# FastAPI and server
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# AoE2 replay parsing
+mgz==1.8.44
+
+# CS2 demo parsing
+demoparser2>=0.40.0
+awpy>=2.0.0
+
+# LLM providers (at least one required)
+google-generativeai==0.8.0  # Gemini
+anthropic>=0.40.0           # Claude (optional)
+openai>=1.50.0              # OpenAI (optional)
+
+# Utilities
+pydantic==2.5.3
+python-dotenv==1.0.0
