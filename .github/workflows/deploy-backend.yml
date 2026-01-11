@@ -3,7 +3,9 @@ name: Deploy Backend to Cloud Run
 on:
   push:
     branches: [main]
-    paths: [backend/**]
+    paths:
+      - backend/**
+      - .github/workflows/deploy-backend.yml
   workflow_dispatch: # Allow manual trigger
 
 env:
@@ -12,6 +14,7 @@ env:
   REGION: us-central1
   WORKLOAD_IDENTITY_PROVIDER: projects/268399199868/locations/global/workloadIdentityPools/github-pool/providers/github-provider
   SERVICE_ACCOUNT: github-actions@project-48dfd3a0-58cd-43e5-ae7.iam.gserviceaccount.com
+  FRONTEND_URL: https://forging-frontend-nht57oxpca-uc.a.run.app
 
 jobs:
   deploy:
@@ -44,4 +47,5 @@ jobs:
             --image=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/forging/${{ env.SERVICE_NAME }}:${{ github.sha }} \
             --region=${{ env.REGION }} \
             --platform=managed \
-            --allow-unauthenticated
+            --allow-unauthenticated \
+            --set-env-vars="ALLOWED_ORIGINS=${{ env.FRONTEND_URL }},http://localhost:3000"

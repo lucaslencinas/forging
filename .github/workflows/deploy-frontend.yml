@@ -3,7 +3,9 @@ name: Deploy Frontend to Cloud Run
 on:
   push:
     branches: [main]
-    paths: [frontend/**]
+    paths:
+      - frontend/**
+      - .github/workflows/deploy-frontend.yml
   workflow_dispatch: # Allow manual trigger
 
 env:
