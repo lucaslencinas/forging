@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useVideoUpload } from "@/hooks/useVideoUpload";
 
 type GameType = "aoe2" | "cs2";
 
 interface FileUploadProps {
   gameType: GameType;
-  onAnalyze: (replayFile: File, videoFile?: File) => void;
+  onAnalyze: (replayFile: File, videoObjectName?: string) => void;
   isLoading: boolean;
   loadingState: string;
 }
@@ -33,6 +34,7 @@ export function FileUpload({
   const [replayFile, setReplayFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const videoUpload = useVideoUpload();
 
   const config = gameConfig[gameType];
 
@@ -74,18 +76,30 @@ export function FileUpload({
     }
   };
 
-  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setVideoFile(file);
+      // Start upload immediately
+      await videoUpload.upload(file);
     }
+  };
+
+  const handleRemoveVideo = () => {
+    setVideoFile(null);
+    videoUpload.reset();
   };
 
   const handleSubmit = () => {
     if (replayFile) {
-      onAnalyze(replayFile, videoFile || undefined);
+      // Pass the uploaded video object name if available
+      onAnalyze(replayFile, videoUpload.objectName || undefined);
     }
   };
+
+  const isVideoUploading = videoUpload.status === "uploading" || videoUpload.status === "validating";
+  const isVideoReady = videoUpload.status === "complete";
+  const canSubmit = replayFile && !isLoading && !isVideoUploading;
 
   return (
     <div className="space-y-6">
@@ -137,32 +151,66 @@ export function FileUpload({
               Video Recording (Optional)
             </h4>
             <p className="text-sm text-zinc-500">
-              Add a screen recording for enhanced AI analysis
+              Add a screen recording for enhanced AI analysis (MP4, max 500MB, 15 min)
             </p>
           </div>
-          <label className="cursor-pointer rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-600">
-            {videoFile ? "Change" : "Add Video"}
+          <label className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            isVideoUploading
+              ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+              : "bg-zinc-700 cursor-pointer hover:bg-zinc-600"
+          }`}>
+            {isVideoUploading ? "Uploading..." : videoFile ? "Change" : "Add Video"}
             <input
               type="file"
-              accept=".mp4,.webm"
+              accept=".mp4"
               onChange={handleVideoChange}
               className="hidden"
+              disabled={isVideoUploading}
             />
           </label>
         </div>
+
+        {/* Video upload progress */}
         {videoFile && (
-          <div className="mt-4 flex items-center gap-2 text-sm text-zinc-400">
-            <span>🎥</span>
-            <span>{videoFile.name}</span>
-            <span className="text-zinc-600">
-              ({(videoFile.size / 1024 / 1024).toFixed(2)} MB)
-            </span>
-            <button
-              onClick={() => setVideoFile(null)}
-              className="ml-auto text-red-400 hover:text-red-300"
-            >
-              Remove
-            </button>
+          <div className="mt-4 space-y-2">
+            <div className="flex items-center gap-2 text-sm text-zinc-400">
+              <span>{isVideoReady ? "✅" : isVideoUploading ? "⏳" : videoUpload.status === "error" ? "❌" : "🎥"}</span>
+              <span className={isVideoReady ? "text-green-400" : ""}>{videoFile.name}</span>
+              <span className="text-zinc-600">
+                ({(videoFile.size / 1024 / 1024).toFixed(2)} MB)
+              </span>
+              <button
+                onClick={handleRemoveVideo}
+                disabled={isVideoUploading}
+                className="ml-auto text-red-400 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Remove
+              </button>
+            </div>
+
+            {/* Progress bar */}
+            {isVideoUploading && (
+              <div className="w-full bg-zinc-700 rounded-full h-2">
+                <div
+                  className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${videoUpload.progress}%` }}
+                />
+              </div>
+            )}
+
+            {/* Status message */}
+            {videoUpload.status === "validating" && (
+              <p className="text-xs text-zinc-500">Validating video...</p>
+            )}
+            {videoUpload.status === "uploading" && (
+              <p className="text-xs text-zinc-500">Uploading: {videoUpload.progress}%</p>
+            )}
+            {isVideoReady && (
+              <p className="text-xs text-green-500">Video uploaded successfully</p>
+            )}
+            {videoUpload.error && (
+              <p className="text-xs text-red-400">{videoUpload.error}</p>
+            )}
           </div>
         )}
       </div>
@@ -170,10 +218,10 @@ export function FileUpload({
       {/* Analyze Button */}
       <button
         onClick={handleSubmit}
-        disabled={!replayFile || isLoading}
+        disabled={!canSubmit}
         className={`
           w-full rounded-xl py-4 text-lg font-semibold transition-all
-          ${replayFile && !isLoading
+          ${canSubmit
             ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600"
             : "cursor-not-allowed bg-zinc-700 text-zinc-500"
           }

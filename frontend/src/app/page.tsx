@@ -17,7 +17,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [lastReplayFile, setLastReplayFile] = useState<File | null>(null);
 
-  const handleAnalyze = async (replayFile: File, videoFile?: File) => {
+  const handleAnalyze = async (replayFile: File, videoObjectName?: string) => {
     // Store the file for re-analysis
     setLastReplayFile(replayFile);
     if (!selectedGame) return;
@@ -35,8 +35,8 @@ export default function Home() {
         formData.append("demo", replayFile);
       }
 
-      // TODO: Handle video upload to GCS first if provided
-      // For MVP, we'll skip video for now
+      // Video is already uploaded to GCS, videoObjectName contains the path
+      // This will be used in Milestone 3 for video analysis
 
       setAnalysisState("analyzing");
 
