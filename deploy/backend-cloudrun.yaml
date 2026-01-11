@@ -1,5 +1,8 @@
 # Cloud Run service configuration for the backend
-# Deploy with: gcloud run services replace backend-cloudrun.yaml
+# Deploy with: gcloud run services replace backend-cloudrun.yaml --region=us-central1
+#
+# Note: This file is for reference/manual deploys. GitHub Actions uses gcloud run deploy directly.
+# Replace PROJECT_ID with your actual GCP project ID before using.
 
 apiVersion: serving.knative.dev/v1
 kind: Service
@@ -20,7 +23,8 @@ spec:
       containerConcurrency: 10
       timeoutSeconds: 300
       containers:
-        - image: gcr.io/PROJECT_ID/forging-backend:latest
+        # Updated to use Artifact Registry (gcr.io is deprecated)
+        - image: us-central1-docker.pkg.dev/PROJECT_ID/forging/forging-backend:latest
           ports:
             - containerPort: 8080
           resources:
@@ -34,4 +38,4 @@ spec:
               value: "forging-uploads"
             - name: ALLOWED_ORIGINS
               value: "https://forging-frontend-HASH.run.app,http://localhost:3000"
-            # GEMINI_API_KEY should be set via Secret Manager
+            # Add other environment variables as needed
