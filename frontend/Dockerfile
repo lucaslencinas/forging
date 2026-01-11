@@ -3,8 +3,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install pnpm (pinned version to match lockfile)
-RUN corepack enable && corepack prepare pnpm@8.15.7 --activate
+# Install pnpm (pinned version to match lockfile v6.0)
+RUN npm install -g pnpm@8.15.7
 
 # Copy package files
 COPY package.json pnpm-lock.yaml* ./
@@ -26,9 +26,6 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-
-# Install pnpm (pinned version to match lockfile)
-RUN corepack enable && corepack prepare pnpm@8.15.7 --activate
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
