@@ -19,10 +19,14 @@ logger = logging.getLogger(__name__)
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from models import AnalysisResponse, GameSummary, Player, PlayerUptime, Analysis
+from models import (
+    AnalysisResponse, GameSummary, Player, PlayerUptime, Analysis,
+    VideoUploadRequest, VideoUploadResponse, VideoDownloadResponse,
+)
 from services.aoe2_parser import parse_aoe2_replay
 from services.cs2_parser import parse_cs2_demo
 from services.analyzer import analyze_with_gemini, list_available_models
+from services import gcs
 
 list_available_models()
 
@@ -132,6 +136,31 @@ async def analyze_cs2(demo: UploadFile = File(...)):
         }
     finally:
         os.unlink(tmp_path)
+
+
+# Video upload endpoints
+@app.post("/api/video/upload-url", response_model=VideoUploadResponse)
+async def get_video_upload_url(request: VideoUploadRequest) -> VideoUploadResponse:
+    """Generate a signed URL for uploading a video to GCS."""
+    try:
+        result = gcs.generate_upload_url(
+            filename=request.filename,
+            content_type=request.content_type,
+            file_size=request.file_size,
+        )
+        return VideoUploadResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/video/download-url/{object_name:path}", response_model=VideoDownloadResponse)
+async def get_video_download_url(object_name: str) -> VideoDownloadResponse:
+    """Generate a signed URL for downloading/playing a video from GCS."""
+    try:
+        result = gcs.generate_download_url(object_name)
+        return VideoDownloadResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 if __name__ == "__main__":

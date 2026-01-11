@@ -49,3 +49,26 @@ class AnalysisResponse(BaseModel):
     game_type: str
     game_summary: GameSummary
     analysis: Analysis
+
+
+# Video upload models
+class VideoUploadRequest(BaseModel):
+    """Request to generate a signed upload URL."""
+    filename: str
+    content_type: str  # must be video/mp4
+    file_size: int | None = None  # bytes, for validation
+
+
+class VideoUploadResponse(BaseModel):
+    """Response with signed upload URL."""
+    signed_url: str
+    object_name: str
+    expiry_minutes: int
+    bucket: str
+
+
+class VideoDownloadResponse(BaseModel):
+    """Response with signed download URL."""
+    signed_url: str
+    object_name: str
+    expiry_minutes: int
