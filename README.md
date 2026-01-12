@@ -207,8 +207,7 @@ forging/
 ├── .github/workflows/     # CI/CD pipelines
 │   ├── deploy-backend.yml
 │   └── deploy-frontend.yml
-├── scripts/               # Deployment scripts
-└── deploy/                # GCS CORS and lifecycle configs
+└── deploy/                # GCS CORS config
 ```
 
 ## License
