@@ -1,5 +1,9 @@
 # Forging - Project Instructions
 
+## Git Commits
+
+When creating commits, do NOT include the "Co-Authored-By" line in commit messages.
+
 ## Pre-Push Checklist
 
 Before pushing to main, review and update if needed:
