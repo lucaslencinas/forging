@@ -105,8 +105,10 @@ export function useVideoUpload() {
       const { signed_url, object_name }: UploadUrlResponse = await urlResponse.json();
 
       // Upload to GCS with progress tracking
+      // Large files (500MB) may take several minutes to upload
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
+        xhr.timeout = 600000; // 10 minute timeout for large files
 
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable) {
@@ -123,7 +125,8 @@ export function useVideoUpload() {
           }
         };
 
-        xhr.onerror = () => reject(new Error("Upload failed"));
+        xhr.onerror = () => reject(new Error("Upload failed. Check your connection."));
+        xhr.ontimeout = () => reject(new Error("Upload timed out. Try a smaller file or check your connection."));
 
         xhr.open("PUT", signed_url);
         xhr.setRequestHeader("Content-Type", file.type);

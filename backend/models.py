@@ -72,3 +72,25 @@ class VideoDownloadResponse(BaseModel):
     signed_url: str
     object_name: str
     expiry_minutes: int
+
+
+# Video analysis models
+class TimestampedTip(BaseModel):
+    """A coaching tip tied to a specific timestamp in the video."""
+    timestamp_seconds: int  # e.g., 125 = 2:05
+    timestamp_display: str  # e.g., "2:05"
+    tip: str
+    category: str  # "economy" | "military" | "strategy"
+
+
+class VideoAnalysisResponse(BaseModel):
+    """Response from video analysis endpoint."""
+    model_config = ConfigDict(protected_namespaces=())
+
+    video_object_name: str
+    duration_seconds: int
+    tips: list[TimestampedTip]
+    game_summary: GameSummary | None = None  # From replay parsing if provided
+    model_used: str
+    provider: str
+    error: str | None = None

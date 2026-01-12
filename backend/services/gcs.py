@@ -194,9 +194,8 @@ def generate_download_url(object_name: str) -> dict:
     bucket = client.bucket(BUCKET_NAME)
     blob = bucket.blob(object_name)
 
-    # Check if blob exists
-    if not blob.exists():
-        raise ValueError(f"Object not found: {object_name}")
+    # Note: Skipping blob.exists() check because ADC may not have direct read access
+    # The signed URL will fail at download time if object doesn't exist
 
     # Generate signed URL for download (GET)
     signed_url = blob.generate_signed_url(
@@ -231,3 +230,70 @@ def delete_object(object_name: str) -> bool:
         blob.delete()
         return True
     return False
+
+
+def download_to_temp(object_name: str, temp_dir: Optional[str] = None) -> str:
+    """
+    Download a GCS object to a temporary file using a signed URL.
+
+    Args:
+        object_name: The object name in GCS (e.g., "videos/abc123.mp4")
+        temp_dir: Optional temp directory to use
+
+    Returns:
+        Path to the downloaded file
+
+    Raises:
+        ValueError: If download fails
+    """
+    import tempfile
+    import requests
+
+    # Generate a signed download URL (works even without direct read access)
+    credentials = get_signing_credentials()
+    client = get_storage_client()
+    bucket = client.bucket(BUCKET_NAME)
+    blob = bucket.blob(object_name)
+
+    signed_url = blob.generate_signed_url(
+        version="v4",
+        expiration=timedelta(minutes=30),
+        method="GET",
+        credentials=credentials,
+    )
+
+    # Create temp file with same extension
+    extension = os.path.splitext(object_name)[1] or ".mp4"
+    fd, temp_path = tempfile.mkstemp(suffix=extension, dir=temp_dir)
+    os.close(fd)
+
+    logger.info(f"Downloading {object_name} via signed URL to {temp_path}")
+
+    # Download using the signed URL with timeout and retry
+    # Large videos (500MB) may take several minutes to download
+    max_retries = 3
+    timeout = (30, 600)  # (connect timeout, read timeout) - 10 min read for large files
+
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(signed_url, stream=True, timeout=timeout)
+            if response.status_code != 200:
+                raise ValueError(f"Failed to download {object_name}: {response.status_code} {response.reason}")
+
+            with open(temp_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=65536):  # 64KB chunks for faster download
+                    f.write(chunk)
+            break  # Success, exit retry loop
+
+        except requests.exceptions.Timeout as e:
+            logger.warning(f"Download timeout (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt == max_retries - 1:
+                raise ValueError(f"Download timed out after {max_retries} attempts")
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Download error (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt == max_retries - 1:
+                raise ValueError(f"Download failed after {max_retries} attempts: {e}")
+
+    logger.info(f"Download complete: {os.path.getsize(temp_path)} bytes")
+
+    return temp_path

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useVideoUpload } from "@/hooks/useVideoUpload";
 
 type GameType = "aoe2" | "cs2";
@@ -8,6 +8,7 @@ type GameType = "aoe2" | "cs2";
 interface FileUploadProps {
   gameType: GameType;
   onAnalyze: (replayFile: File, videoObjectName?: string) => void;
+  onVideoAnalyze?: (videoObjectName: string, replayFile: File | null, model?: string) => void;
   isLoading: boolean;
   loadingState: string;
 }
@@ -25,18 +26,42 @@ const gameConfig = {
   },
 };
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 export function FileUpload({
   gameType,
   onAnalyze,
+  onVideoAnalyze,
   isLoading,
   loadingState,
 }: FileUploadProps) {
   const [replayFile, setReplayFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>("");
   const videoUpload = useVideoUpload();
 
   const config = gameConfig[gameType];
+
+  // Fetch available models on mount
+  useEffect(() => {
+    async function fetchModels() {
+      try {
+        const response = await fetch(`${API_BASE}/api/video/models`);
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableModels(data.models || []);
+          if (data.models?.length > 0) {
+            setSelectedModel(data.models[0]); // Default to first model
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch models:", error);
+      }
+    }
+    fetchModels();
+  }, []);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -97,9 +122,17 @@ export function FileUpload({
     }
   };
 
+  const handleVideoAnalyze = () => {
+    if (videoUpload.objectName && onVideoAnalyze) {
+      onVideoAnalyze(videoUpload.objectName, replayFile, selectedModel || undefined);
+    }
+  };
+
   const isVideoUploading = videoUpload.status === "uploading" || videoUpload.status === "validating";
   const isVideoReady = videoUpload.status === "complete";
   const canSubmit = replayFile && !isLoading && !isVideoUploading;
+  // Video must be fully uploaded to GCS before we can analyze
+  const canVideoAnalyze = isVideoReady && videoUpload.objectName && !isLoading && onVideoAnalyze;
 
   return (
     <div className="space-y-6">
@@ -215,45 +248,118 @@ export function FileUpload({
         )}
       </div>
 
-      {/* Analyze Button */}
-      <button
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        className={`
-          w-full rounded-xl py-4 text-lg font-semibold transition-all
-          ${canSubmit
-            ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600"
-            : "cursor-not-allowed bg-zinc-700 text-zinc-500"
-          }
-        `}
-      >
-        {isLoading ? (
-          <span className="flex items-center justify-center gap-2">
-            <svg
-              className="h-5 w-5 animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
+      {/* Action Buttons */}
+      <div className="space-y-3">
+        {/* Analyze Replay Button */}
+        <button
+          onClick={handleSubmit}
+          disabled={!canSubmit}
+          className={`
+            w-full rounded-xl py-4 text-lg font-semibold transition-all
+            ${canSubmit
+              ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600"
+              : "cursor-not-allowed bg-zinc-700 text-zinc-500"
+            }
+          `}
+        >
+          {isLoading && loadingState !== "video-analyzing" ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg
+                className="h-5 w-5 animate-spin"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
+              </svg>
+              {loadingState === "uploading" ? "Uploading..." : "Analyzing with AI..."}
+            </span>
+          ) : (
+            "Analyze Replay"
+          )}
+        </button>
+
+        {/* Model Selection Dropdown */}
+        {onVideoAnalyze && availableModels.length > 0 && (
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-zinc-400">Model:</label>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="flex-1 rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-purple-500"
             >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-              />
-            </svg>
-            {loadingState === "uploading" ? "Uploading..." : "Analyzing with AI..."}
-          </span>
-        ) : (
-          "Analyze Game"
+              {availableModels.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+            </select>
+          </div>
         )}
-      </button>
+
+        {/* Analyze with Video Button */}
+        {onVideoAnalyze && (
+          <button
+            onClick={handleVideoAnalyze}
+            disabled={!canVideoAnalyze}
+            className={`
+              w-full rounded-xl py-4 text-lg font-semibold transition-all border-2
+              ${canVideoAnalyze
+                ? "border-purple-500 bg-purple-500/20 text-purple-300 hover:bg-purple-500/30"
+                : "cursor-not-allowed border-zinc-700 bg-zinc-800 text-zinc-500"
+              }
+            `}
+          >
+            {isLoading && loadingState === "video-analyzing" ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg
+                  className="h-5 w-5 animate-spin"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
+                </svg>
+                Analyzing Video with AI...
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <span>🎥</span>
+                Analyze with Video
+                {replayFile && <span className="text-sm opacity-70">(+ replay data)</span>}
+              </span>
+            )}
+          </button>
+        )}
+
+        {videoFile && !replayFile && onVideoAnalyze && (
+          <p className="text-center text-sm text-zinc-500">
+            Tip: Add a replay file for more accurate analysis
+          </p>
+        )}
+      </div>
     </div>
   );
 }

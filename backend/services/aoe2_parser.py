@@ -52,10 +52,19 @@ def parse_aoe2_replay(file_path: str) -> dict[str, Any]:
     # Build summary
     duration_str = raw_data.get("duration", "0:00:00")
     duration_seconds = _parse_duration(duration_str)
+
+    # Game speed affects timestamp conversion to real time
+    # AoE2 DE speeds: Slow=1.0, Normal=1.5, Fast=1.7
+    game_speed = raw_data.get("speed", "Normal")
+    speed_multiplier = _get_speed_multiplier(game_speed)
+
     summary = {
         "map": raw_data.get("map", {}).get("name", "Unknown"),
         "map_size": raw_data.get("map", {}).get("size", "Unknown"),
         "duration": _format_duration(duration_seconds),
+        "duration_real": _format_duration(int(duration_seconds / speed_multiplier)),
+        "game_speed": game_speed,
+        "speed_multiplier": speed_multiplier,
         "game_version": raw_data.get("game_version", "Unknown"),
         "rated": raw_data.get("rated", False),
         "players": players,
@@ -65,21 +74,26 @@ def parse_aoe2_replay(file_path: str) -> dict[str, Any]:
     raw_actions = raw_data.get("actions", [])
     actions = _extract_key_actions(raw_actions)
 
+    # Extract aggregated stats (units trained, buildings built, researches)
+    player_stats = _extract_player_stats(raw_actions)
+
     logger.info(f"Parsed {len(players)} players, {len(actions)} key actions")
 
     return {
         "summary": summary,
         "players": players,
         "actions": actions,
+        "player_stats": player_stats,
     }
 
 
 def _extract_key_actions(actions: list) -> list[dict]:
-    """Extract key actions (builds, queues, orders)."""
+    """Extract key actions (builds, queues, research)."""
     key_actions = []
-    important_types = {"BUILD", "DE_QUEUE", "GAME", "ORDER"}
+    # Focus on actions that tell us what happened in the game
+    important_types = {"BUILD", "DE_QUEUE", "RESEARCH"}
 
-    for action in actions[:500]:
+    for action in actions:
         action_type = action.get("type", "")
         if action_type in important_types:
             key_actions.append({
@@ -90,6 +104,52 @@ def _extract_key_actions(actions: list) -> list[dict]:
             })
 
     return key_actions
+
+
+def _extract_player_stats(actions: list) -> dict:
+    """Extract aggregated stats per player: units trained, buildings built, researches."""
+    stats = {}
+
+    for action in actions:
+        player = action.get("player", 0)
+        action_type = action.get("type", "")
+        payload = action.get("payload", {})
+        timestamp = action.get("timestamp", "0:00:00")
+
+        if player not in stats:
+            stats[player] = {
+                "units_trained": {},
+                "buildings_built": [],
+                "researches": [],
+            }
+
+        if action_type == "DE_QUEUE":
+            unit = payload.get("unit", "Unknown")
+            stats[player]["units_trained"][unit] = stats[player]["units_trained"].get(unit, 0) + 1
+
+        elif action_type == "BUILD":
+            building = payload.get("building", "Unknown")
+            # Only add if not duplicate (same building at same time)
+            entry = {"building": building, "time": timestamp[:7]}  # Truncate to mm:ss
+            if entry not in stats[player]["buildings_built"]:
+                stats[player]["buildings_built"].append(entry)
+
+        elif action_type == "RESEARCH":
+            tech = payload.get("technology", "Unknown")
+            stats[player]["researches"].append({"technology": tech, "time": timestamp[:7]})
+
+    return stats
+
+
+def _get_speed_multiplier(speed: str) -> float:
+    """Get the game speed multiplier for converting game time to real time."""
+    speed_map = {
+        "Slow": 1.0,
+        "Normal": 1.5,
+        "Fast": 1.7,
+        "Standard": 1.5,  # Standard is same as Normal in DE
+    }
+    return speed_map.get(speed, 1.5)
 
 
 def _parse_duration(duration_str: str) -> int:

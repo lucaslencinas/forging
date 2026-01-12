@@ -16,18 +16,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from models import (
     AnalysisResponse, GameSummary, Player, PlayerUptime, Analysis,
     VideoUploadRequest, VideoUploadResponse, VideoDownloadResponse,
+    VideoAnalysisResponse,
 )
 from services.aoe2_parser import parse_aoe2_replay
 from services.cs2_parser import parse_cs2_demo
 from services.analyzer import analyze_with_gemini, list_available_models
 from services import gcs
+from services import video_analyzer
+from services.llm.gemini import GeminiProvider
 
 list_available_models()
 
@@ -172,6 +175,69 @@ async def get_video_download_url(object_name: str) -> VideoDownloadResponse:
         return VideoDownloadResponse(**result)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get("/api/video/models")
+async def get_video_models():
+    """Get list of available video analysis models."""
+    return {"models": GeminiProvider.VIDEO_MODELS}
+
+
+@app.post("/api/analyze/video", response_model=VideoAnalysisResponse)
+async def analyze_video_endpoint(
+    video_object_name: str = Form(...),
+    replay: UploadFile = File(None),
+    model: str = Form(None),
+) -> VideoAnalysisResponse:
+    """
+    Analyze a gameplay video using Gemini's multimodal capabilities.
+
+    The video should already be uploaded to GCS (via the /api/video/upload-url flow).
+    Optionally include a replay file (.aoe2record) for richer analysis.
+
+    This endpoint:
+    1. Downloads video from GCS
+    2. Uploads it to Gemini File API
+    3. Optionally parses the replay for structured game data
+    4. Analyzes with Gemini, combining video + replay data
+    5. Returns timestamped coaching tips
+    """
+    replay_data = None
+    replay_tmp_path = None
+
+    # Parse replay if provided
+    if replay and replay.filename:
+        if not replay.filename.endswith(".aoe2record"):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid replay type. Expected .aoe2record file"
+            )
+
+        replay_content = await replay.read()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".aoe2record") as tmp:
+            tmp.write(replay_content)
+            replay_tmp_path = tmp.name
+
+        try:
+            replay_data = parse_aoe2_replay(replay_tmp_path)
+        except Exception as e:
+            logger.warning(f"Failed to parse replay: {e}")
+
+    try:
+        # Analyze with Gemini (video is already in GCS)
+        result = await video_analyzer.analyze_video(
+            video_object_name=video_object_name,
+            replay_data=replay_data,
+            duration_seconds=0,
+            model=model,
+        )
+
+        return result
+
+    finally:
+        # Cleanup temp files
+        if replay_tmp_path:
+            os.unlink(replay_tmp_path)
 
 
 if __name__ == "__main__":

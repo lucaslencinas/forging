@@ -4,16 +4,20 @@ import { useState } from "react";
 import { GameSelector } from "@/components/GameSelector";
 import { FileUpload } from "@/components/FileUpload";
 import { AnalysisResults } from "@/components/AnalysisResults";
+import { VideoAnalysisResults } from "@/components/VideoAnalysisResults";
 import type { components } from "@/types/api";
 
 type GameType = "aoe2" | "cs2" | null;
-type AnalysisState = "idle" | "uploading" | "analyzing" | "complete" | "error";
+type AnalysisState = "idle" | "uploading" | "analyzing" | "video-analyzing" | "complete" | "video-complete" | "error";
 type AnalysisResponse = components["schemas"]["AnalysisResponse"];
+type VideoAnalysisResponse = components["schemas"]["VideoAnalysisResponse"];
 
 export default function Home() {
   const [selectedGame, setSelectedGame] = useState<GameType>(null);
   const [analysisState, setAnalysisState] = useState<AnalysisState>("idle");
   const [analysisResult, setAnalysisResult] = useState<AnalysisResponse | null>(null);
+  const [videoAnalysisResult, setVideoAnalysisResult] = useState<VideoAnalysisResponse | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastReplayFile, setLastReplayFile] = useState<File | null>(null);
 
@@ -59,10 +63,76 @@ export default function Home() {
     }
   };
 
+  const handleVideoAnalyze = async (videoObjectName: string, replayFile: File | null, model?: string) => {
+    if (!selectedGame) return;
+
+    setAnalysisState("video-analyzing");
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("video_object_name", videoObjectName);
+
+      if (replayFile) {
+        formData.append("replay", replayFile);
+      }
+
+      if (model) {
+        formData.append("model", model);
+      }
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+      // Video analysis can take 5-10 minutes for large files
+      // Use AbortController for timeout (10 minutes)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 min timeout
+
+      try {
+        const response = await fetch(`${apiUrl}/api/analyze/video`, {
+          method: "POST",
+          body: formData,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || `Analysis failed: ${response.statusText}`);
+        }
+
+        const result: VideoAnalysisResponse = await response.json();
+
+        // Get download URL for the video
+        const downloadResponse = await fetch(
+          `${apiUrl}/api/video/download-url/${result.video_object_name}`
+        );
+        if (downloadResponse.ok) {
+          const downloadData = await downloadResponse.json();
+          setVideoUrl(downloadData.signed_url);
+        }
+
+        setVideoAnalysisResult(result);
+        setAnalysisState("video-complete");
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('Analysis timed out. Try a shorter video or try again later.');
+        }
+        throw fetchError;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      setAnalysisState("error");
+    }
+  };
+
   const handleReset = () => {
     setSelectedGame(null);
     setAnalysisState("idle");
     setAnalysisResult(null);
+    setVideoAnalysisResult(null);
+    setVideoUrl(null);
     setError(null);
     setLastReplayFile(null);
   };
@@ -85,7 +155,21 @@ export default function Home() {
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-12">
-        {(analysisState === "complete" || ((analysisState === "uploading" || analysisState === "analyzing") && analysisResult)) && analysisResult ? (
+        {/* Video Analysis Results */}
+        {analysisState === "video-complete" && videoAnalysisResult && videoUrl ? (
+          <div className="space-y-6">
+            <button
+              onClick={handleReset}
+              className="flex items-center gap-2 rounded-lg bg-zinc-800 px-4 py-2 text-sm text-zinc-300 transition-colors hover:bg-zinc-700"
+            >
+              ← Back to Upload
+            </button>
+            <VideoAnalysisResults
+              analysis={videoAnalysisResult}
+              videoUrl={videoUrl}
+            />
+          </div>
+        ) : (analysisState === "complete" || ((analysisState === "uploading" || analysisState === "analyzing") && analysisResult)) && analysisResult ? (
           <AnalysisResults
             result={analysisResult}
             onReset={handleReset}
@@ -115,7 +199,8 @@ export default function Home() {
               <FileUpload
                 gameType={selectedGame}
                 onAnalyze={handleAnalyze}
-                isLoading={analysisState === "uploading" || analysisState === "analyzing"}
+                onVideoAnalyze={selectedGame === "aoe2" ? handleVideoAnalyze : undefined}
+                isLoading={analysisState === "uploading" || analysisState === "analyzing" || analysisState === "video-analyzing"}
                 loadingState={analysisState}
               />
             )}

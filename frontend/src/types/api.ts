@@ -78,6 +78,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/video/upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Video Upload Url
+         * @description Generate a signed URL for uploading a video to GCS.
+         */
+        post: operations["get_video_upload_url_api_video_upload_url_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/video/download-url/{object_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Video Download Url
+         * @description Generate a signed URL for downloading/playing a video from GCS.
+         */
+        get: operations["get_video_download_url_api_video_download_url__object_name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analyze/video": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Analyze Video
+         * @description Analyze a gameplay video using Gemini's multimodal capabilities.
+         *
+         *     Optionally include a replay file (.aoe2record) for richer analysis
+         *     by combining visual and game data.
+         *
+         *     This endpoint:
+         *     1. Saves the video to a temp file
+         *     2. Uploads it to Gemini File API
+         *     3. Optionally parses the replay for structured game data
+         *     4. Analyzes with Gemini, combining video + replay data
+         *     5. Returns timestamped coaching tips
+         */
+        post: operations["analyze_video_api_analyze_video_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -123,6 +193,19 @@ export interface components {
              * Format: binary
              */
             demo: string;
+        };
+        /** Body_analyze_video_api_analyze_video_post */
+        Body_analyze_video_api_analyze_video_post: {
+            /**
+             * Video
+             * Format: binary
+             */
+            video: string;
+            /**
+             * Replay
+             * Format: binary
+             */
+            replay?: string;
         };
         /**
          * GameSummary
@@ -178,6 +261,20 @@ export interface components {
             /** Imperial Age */
             imperial_age?: number | null;
         };
+        /**
+         * TimestampedTip
+         * @description A coaching tip tied to a specific timestamp in the video.
+         */
+        TimestampedTip: {
+            /** Timestamp Seconds */
+            timestamp_seconds: number;
+            /** Timestamp Display */
+            timestamp_display: string;
+            /** Tip */
+            tip: string;
+            /** Category */
+            category: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -186,6 +283,63 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * VideoAnalysisResponse
+         * @description Response from video analysis endpoint.
+         */
+        VideoAnalysisResponse: {
+            /** Video Object Name */
+            video_object_name: string;
+            /** Duration Seconds */
+            duration_seconds: number;
+            /** Tips */
+            tips: components["schemas"]["TimestampedTip"][];
+            game_summary?: components["schemas"]["GameSummary"] | null;
+            /** Model Used */
+            model_used: string;
+            /** Provider */
+            provider: string;
+            /** Error */
+            error?: string | null;
+        };
+        /**
+         * VideoDownloadResponse
+         * @description Response with signed download URL.
+         */
+        VideoDownloadResponse: {
+            /** Signed Url */
+            signed_url: string;
+            /** Object Name */
+            object_name: string;
+            /** Expiry Minutes */
+            expiry_minutes: number;
+        };
+        /**
+         * VideoUploadRequest
+         * @description Request to generate a signed upload URL.
+         */
+        VideoUploadRequest: {
+            /** Filename */
+            filename: string;
+            /** Content Type */
+            content_type: string;
+            /** File Size */
+            file_size?: number | null;
+        };
+        /**
+         * VideoUploadResponse
+         * @description Response with signed upload URL.
+         */
+        VideoUploadResponse: {
+            /** Signed Url */
+            signed_url: string;
+            /** Object Name */
+            object_name: string;
+            /** Expiry Minutes */
+            expiry_minutes: number;
+            /** Bucket */
+            bucket: string;
         };
     };
     responses: never;
@@ -289,6 +443,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_video_upload_url_api_video_upload_url_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VideoUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_video_download_url_api_video_download_url__object_name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoDownloadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analyze_video_api_analyze_video_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_analyze_video_api_analyze_video_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoAnalysisResponse"];
                 };
             };
             /** @description Validation Error */
