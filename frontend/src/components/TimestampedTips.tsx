@@ -16,6 +16,7 @@ interface TimestampedTipsProps {
 }
 
 const categoryConfig: Record<string, { icon: string; color: string; bgColor: string }> = {
+  // AoE2 categories
   economy: {
     icon: "💰",
     color: "text-yellow-400",
@@ -30,6 +31,27 @@ const categoryConfig: Record<string, { icon: string; color: string; bgColor: str
     icon: "🎯",
     color: "text-blue-400",
     bgColor: "bg-blue-500/10 border-blue-500/30",
+  },
+  // CS2 categories
+  aim: {
+    icon: "🎯",
+    color: "text-red-400",
+    bgColor: "bg-red-500/10 border-red-500/30",
+  },
+  utility: {
+    icon: "💨",
+    color: "text-green-400",
+    bgColor: "bg-green-500/10 border-green-500/30",
+  },
+  positioning: {
+    icon: "📍",
+    color: "text-blue-400",
+    bgColor: "bg-blue-500/10 border-blue-500/30",
+  },
+  teamwork: {
+    icon: "🤝",
+    color: "text-purple-400",
+    bgColor: "bg-purple-500/10 border-purple-500/30",
   },
 };
 

@@ -72,6 +72,7 @@ export default function Home() {
     try {
       const formData = new FormData();
       formData.append("video_object_name", videoObjectName);
+      formData.append("game_type", selectedGame);
 
       if (replayFile) {
         formData.append("replay", replayFile);
@@ -199,7 +200,7 @@ export default function Home() {
               <FileUpload
                 gameType={selectedGame}
                 onAnalyze={handleAnalyze}
-                onVideoAnalyze={selectedGame === "aoe2" ? handleVideoAnalyze : undefined}
+                onVideoAnalyze={handleVideoAnalyze}
                 isLoading={analysisState === "uploading" || analysisState === "analyzing" || analysisState === "video-analyzing"}
                 loadingState={analysisState}
               />

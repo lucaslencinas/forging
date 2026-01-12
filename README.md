@@ -6,12 +6,15 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 
 ### What's Working
 - ✅ AoE2 replay parsing (`.aoe2record` files)
-- ✅ CS2 demo parsing (`.dem` files) - basic support
+- ✅ CS2 demo parsing (`.dem` files)
 - ✅ LLM analysis with multi-provider support (Gemini, Claude, OpenAI)
 - ✅ 3-5 actionable coaching tips per analysis
 - ✅ Web UI for uploading and viewing results
 - ✅ CLI tool for quick testing (`python analyze.py replay.aoe2record`)
 - ✅ Video upload to GCS with progress tracking
+- ✅ **Video analysis with timestamped coaching tips** (AoE2 + CS2)
+- ✅ **Video player with clickable timestamps**
+- ✅ **Gemini 2.5/3.0 model selection** for video analysis
 - ✅ Automatic CI/CD deployment via GitHub Actions
 
 ### Live Demo
@@ -22,12 +25,11 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 | Backend API | https://forging-backend-nht57oxpca-uc.a.run.app |
 
 ### What's Missing / TODO
-- ⬜ Video analysis with timestamped coaching tips (Milestone 3)
-- ⬜ Video player with clickable timestamps
 - ⬜ User accounts and history
-- ⬜ More detailed CS2 analysis
 - ⬜ Build order visualization
 - ⬜ Comparison with pro player benchmarks
+- ✅ ~~Video analysis with timestamped coaching tips~~
+- ✅ ~~Video player with clickable timestamps~~
 - ✅ ~~Production deployment~~
 - ✅ ~~Video upload infrastructure~~
 
@@ -40,6 +42,9 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 
 - 📁 Upload replay files for instant AI analysis
 - 🎥 Video upload with progress tracking (MP4, max 500MB, 15 min)
+- 🎬 **Video analysis with AI-powered timestamped coaching tips**
+- ⏱️ **Clickable timestamps to jump to specific moments in the video**
+- 🎮 **Support for AoE2 and CS2 video analysis**
 - 🤖 Multi-provider LLM support (Gemini, Claude, OpenAI) with automatic fallback
 - 🎯 Game-specific coaching feedback (3-5 actionable tips)
 - 📊 Build order analysis, timing comparisons, and improvement suggestions
@@ -54,6 +59,7 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 │  Frontend (Next.js 16)                           Deploy: Cloud Run      │
 │  • File upload UI                                                       │
 │  • Video upload with progress bar                                       │
+│  • Video player with clickable timestamps                               │
 │  • Analysis results display                                             │
 └─────────────────────────────────────────────────────────────────────────┘
                                    │
@@ -61,18 +67,19 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  Backend (Python FastAPI)                        Deploy: Cloud Run      │
 │  • Replay parsing (mgz, demoparser2)                                    │
+│  • Video analysis with Gemini File API                                  │
 │  • LLM integration (Gemini/Claude/OpenAI)                               │
 │  • GCS signed URL generation                                            │
 └─────────────────────────────────────────────────────────────────────────┘
                                    │
-                    ┌──────────────┴──────────────┐
-                    ▼                             ▼
-     ┌──────────────────────────┐  ┌──────────────────────────┐
-     │  LLM Provider            │  │  Google Cloud Storage    │
-     │  • Gemini (default)      │  │  • Video uploads         │
-     │  • Claude (fallback)     │  │  • Signed URLs           │
-     │  • OpenAI (fallback)     │  │  • 24h auto-delete       │
-     └──────────────────────────┘  └──────────────────────────┘
+              ┌────────────────────┼────────────────────┐
+              ▼                    ▼                    ▼
+┌──────────────────────┐ ┌──────────────────┐ ┌──────────────────────┐
+│  Gemini File API     │ │  LLM Provider    │ │  Google Cloud Storage│
+│  • Video upload      │ │  • Gemini 2.5/3  │ │  • Video uploads     │
+│  • Multimodal AI     │ │  • Claude        │ │  • Signed URLs       │
+│  • Timestamped tips  │ │  • OpenAI        │ │  • 24h auto-delete   │
+└──────────────────────┘ └──────────────────┘ └──────────────────────┘
 ```
 
 ## Quick Start
@@ -186,6 +193,11 @@ forging/
 │   ├── src/
 │   │   ├── app/           # App router pages
 │   │   ├── components/    # React components
+│   │   │   ├── VideoPlayer.tsx        # Video player with seek
+│   │   │   ├── TimestampedTips.tsx    # Clickable coaching tips
+│   │   │   └── VideoAnalysisResults.tsx
+│   │   ├── hooks/         # Custom hooks
+│   │   │   └── useVideoUpload.ts      # GCS upload with progress
 │   │   └── types/         # Generated API types
 │   └── package.json
 ├── backend/                # Python FastAPI application
@@ -193,16 +205,20 @@ forging/
 │   ├── models.py          # Pydantic models
 │   ├── analyze.py         # CLI tool
 │   ├── services/
-│   │   ├── aoe2_parser.py # AoE2 replay parsing
-│   │   ├── cs2_parser.py  # CS2 demo parsing
-│   │   ├── analyzer.py    # LLM analysis orchestration
-│   │   ├── gcs.py         # GCS signed URL generation
-│   │   └── llm/           # LLM provider abstraction
-│   │       ├── base.py    # Abstract provider class
-│   │       ├── gemini.py
+│   │   ├── aoe2_parser.py     # AoE2 replay parsing
+│   │   ├── cs2_parser.py      # CS2 demo parsing
+│   │   ├── video_analyzer.py  # AoE2 video analysis
+│   │   ├── cs2_video_analyzer.py  # CS2 video analysis
+│   │   ├── aoe2_knowledge.py  # AoE2 coaching knowledge base
+│   │   ├── cs2_knowledge.py   # CS2 coaching knowledge base
+│   │   ├── analyzer.py        # LLM analysis orchestration
+│   │   ├── gcs.py             # GCS signed URL generation
+│   │   └── llm/               # LLM provider abstraction
+│   │       ├── base.py        # Abstract provider class
+│   │       ├── gemini.py      # Gemini + File API
 │   │       ├── claude.py
 │   │       ├── openai.py
-│   │       └── factory.py # Provider auto-selection
+│   │       └── factory.py     # Provider auto-selection
 │   └── requirements.txt
 ├── .github/workflows/     # CI/CD pipelines
 │   ├── deploy-backend.yml

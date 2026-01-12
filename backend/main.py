@@ -30,6 +30,7 @@ from services.cs2_parser import parse_cs2_demo
 from services.analyzer import analyze_with_gemini, list_available_models
 from services import gcs
 from services import video_analyzer
+from services import cs2_video_analyzer
 from services.llm.gemini import GeminiProvider
 
 list_available_models()
@@ -188,49 +189,80 @@ async def analyze_video_endpoint(
     video_object_name: str = Form(...),
     replay: UploadFile = File(None),
     model: str = Form(None),
+    game_type: str = Form("aoe2"),
 ) -> VideoAnalysisResponse:
     """
     Analyze a gameplay video using Gemini's multimodal capabilities.
 
     The video should already be uploaded to GCS (via the /api/video/upload-url flow).
-    Optionally include a replay file (.aoe2record) for richer analysis.
+    Optionally include a replay/demo file for richer analysis.
+
+    Supported game types:
+    - aoe2: Age of Empires II (.aoe2record)
+    - cs2: Counter-Strike 2 (.dem)
 
     This endpoint:
     1. Downloads video from GCS
     2. Uploads it to Gemini File API
-    3. Optionally parses the replay for structured game data
+    3. Optionally parses the replay/demo for structured game data
     4. Analyzes with Gemini, combining video + replay data
     5. Returns timestamped coaching tips
     """
     replay_data = None
     replay_tmp_path = None
 
-    # Parse replay if provided
+    # Parse replay/demo if provided
     if replay and replay.filename:
-        if not replay.filename.endswith(".aoe2record"):
+        if game_type == "aoe2":
+            if not replay.filename.endswith(".aoe2record"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid replay type. Expected .aoe2record file for AoE2"
+                )
+            suffix = ".aoe2record"
+        elif game_type == "cs2":
+            if not replay.filename.endswith(".dem"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid demo type. Expected .dem file for CS2"
+                )
+            suffix = ".dem"
+        else:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid replay type. Expected .aoe2record file"
+                detail=f"Unsupported game type: {game_type}"
             )
 
         replay_content = await replay.read()
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".aoe2record") as tmp:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(replay_content)
             replay_tmp_path = tmp.name
 
         try:
-            replay_data = parse_aoe2_replay(replay_tmp_path)
+            if game_type == "aoe2":
+                replay_data = parse_aoe2_replay(replay_tmp_path)
+            elif game_type == "cs2":
+                replay_data = parse_cs2_demo(replay_tmp_path)
         except Exception as e:
-            logger.warning(f"Failed to parse replay: {e}")
+            logger.warning(f"Failed to parse replay/demo: {e}")
 
     try:
-        # Analyze with Gemini (video is already in GCS)
-        result = await video_analyzer.analyze_video(
-            video_object_name=video_object_name,
-            replay_data=replay_data,
-            duration_seconds=0,
-            model=model,
-        )
+        # Route to appropriate analyzer based on game type
+        if game_type == "cs2":
+            result = await cs2_video_analyzer.analyze_cs2_video(
+                video_object_name=video_object_name,
+                demo_data=replay_data,
+                duration_seconds=0,
+                model=model,
+            )
+        else:
+            # Default to AoE2
+            result = await video_analyzer.analyze_video(
+                video_object_name=video_object_name,
+                replay_data=replay_data,
+                duration_seconds=0,
+                model=model,
+            )
 
         return result
 
