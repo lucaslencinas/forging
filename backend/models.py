@@ -74,6 +74,21 @@ class VideoDownloadResponse(BaseModel):
     expiry_minutes: int
 
 
+# Replay upload models
+class ReplayUploadRequest(BaseModel):
+    """Request to generate a signed upload URL for replay/demo files."""
+    filename: str  # Must end with .aoe2record or .dem
+    file_size: int | None = None  # bytes, for validation
+
+
+class ReplayUploadResponse(BaseModel):
+    """Response with signed upload URL for replay/demo files."""
+    signed_url: str
+    object_name: str
+    expiry_minutes: int
+    bucket: str
+
+
 # Video analysis models
 class TimestampedTip(BaseModel):
     """A coaching tip tied to a specific timestamp in the video."""
@@ -94,3 +109,77 @@ class VideoAnalysisResponse(BaseModel):
     model_used: str
     provider: str
     error: str | None = None
+
+
+# Saved analysis models (for shareable links)
+class SavedAnalysisRequest(BaseModel):
+    """Request to create and save an analysis."""
+    video_object_name: str
+    replay_object_name: str | None = None
+    game_type: str  # "aoe2" | "cs2"
+    model: str | None = None
+    title: str | None = None
+    creator_name: str | None = None
+    is_public: bool = True
+
+
+class SavedAnalysisResponse(BaseModel):
+    """Response with saved analysis data and share URL."""
+    model_config = ConfigDict(protected_namespaces=())
+
+    id: str
+    share_url: str
+    game_type: str
+    title: str
+    creator_name: str | None = None
+    players: list[str] = []
+    map: str | None = None
+    duration: str | None = None
+    video_object_name: str
+    replay_object_name: str | None = None
+    thumbnail_url: str | None = None
+    tips: list[TimestampedTip]
+    tips_count: int
+    game_summary: GameSummary | None = None
+    model_used: str
+    provider: str
+    created_at: str
+
+
+class AnalysisListItem(BaseModel):
+    """Lightweight analysis data for carousel display."""
+    id: str
+    game_type: str
+    title: str
+    creator_name: str | None = None
+    thumbnail_url: str | None = None
+    tips_count: int
+    created_at: str
+
+
+class AnalysisListResponse(BaseModel):
+    """Response with list of analyses."""
+    analyses: list[AnalysisListItem]
+    total: int
+
+
+class AnalysisDetailResponse(BaseModel):
+    """Full analysis data for viewing a shared analysis."""
+    model_config = ConfigDict(protected_namespaces=())
+
+    id: str
+    game_type: str
+    title: str
+    creator_name: str | None = None
+    players: list[str] = []
+    map: str | None = None
+    duration: str | None = None
+    video_signed_url: str
+    replay_object_name: str | None = None
+    thumbnail_url: str | None = None
+    tips: list[TimestampedTip]
+    tips_count: int
+    game_summary: GameSummary | None = None
+    model_used: str
+    provider: str
+    created_at: str

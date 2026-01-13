@@ -17,6 +17,7 @@ openai>=1.50.0              # OpenAI (optional)
 
 # Google Cloud
 google-cloud-storage>=2.14.0
+google-cloud-firestore>=2.14.0
 
 # Utilities
 pydantic==2.5.3

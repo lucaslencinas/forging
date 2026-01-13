@@ -1,17 +1,20 @@
 """
 Google Cloud Storage utilities for video upload/download.
+
+Authentication strategy:
+- On Cloud Run: Uses the default service account directly
+- Locally: Uses gcloud CLI credentials to impersonate the github-actions service account
+  (This avoids conflicts with ADC which may be configured for other tools like Claude/Vertex AI)
 """
 import logging
 import os
+import subprocess
 import uuid
 from datetime import timedelta
 from typing import Optional
 
-import subprocess
-
 from google.cloud import storage
 from google.auth import default, impersonated_credentials
-from google.auth.transport import requests as google_requests
 from google.oauth2.credentials import Credentials as OAuthCredentials
 
 logger = logging.getLogger(__name__)
@@ -22,28 +25,32 @@ UPLOAD_URL_EXPIRY_MINUTES = 15
 DOWNLOAD_URL_EXPIRY_MINUTES = 60
 
 # File limits
-MAX_FILE_SIZE_MB = 500
+MAX_VIDEO_SIZE_MB = 500
+MAX_REPLAY_SIZE_MB = 500  # Demo files can be large (168MB+)
 MAX_DURATION_SECONDS = 900  # 15 minutes
-ALLOWED_CONTENT_TYPES = ["video/mp4"]
+ALLOWED_VIDEO_CONTENT_TYPES = ["video/mp4"]
+ALLOWED_REPLAY_CONTENT_TYPES = ["application/octet-stream"]
 
-# Cache the client
+# Service account for impersonation (shared with Firestore)
+TARGET_SERVICE_ACCOUNT = os.getenv(
+    "GCP_SERVICE_ACCOUNT",
+    "github-actions@project-48dfd3a0-58cd-43e5-ae7.iam.gserviceaccount.com"
+)
+
+# Cache the client and credentials
 _storage_client = None
 _signing_credentials = None
-
-
-def get_storage_client() -> storage.Client:
-    """Get GCS client. Uses default credentials (ADC)."""
-    global _storage_client
-    if _storage_client is None:
-        _storage_client = storage.Client()
-    return _storage_client
 
 
 def get_signing_credentials():
     """
     Get credentials that can sign URLs.
-    On Cloud Run, this uses the default service account.
-    Locally, uses impersonation to the compute service account.
+
+    On Cloud Run: Uses the default service account directly.
+    Locally: Uses gcloud CLI token to impersonate the service account.
+
+    Requires: Your gcloud account must have roles/iam.serviceAccountTokenCreator
+    on the target service account.
     """
     global _signing_credentials
     if _signing_credentials is not None:
@@ -52,62 +59,44 @@ def get_signing_credentials():
     # Try to get default credentials
     source_credentials, project = default()
 
-    # Check if credentials can sign directly (service account key or metadata server)
+    # Check if we're running as a service account (Cloud Run)
+    # Service accounts have sign_bytes capability
     if hasattr(source_credentials, 'sign_bytes') and hasattr(source_credentials, 'service_account_email'):
-        logger.info("Using direct signing credentials")
+        logger.info(f"Using direct service account: {source_credentials.service_account_email}")
         _signing_credentials = source_credentials
         return _signing_credentials
 
-    # For user credentials (local dev), use impersonation
-    # ADC credentials differ from gcloud credentials, so we use gcloud's token directly
-    target_service_account = os.getenv(
-        "GCS_SIGNING_SERVICE_ACCOUNT",
-        "268399199868-compute@developer.gserviceaccount.com"
+    # Local development: Use gcloud CLI token to impersonate the service account
+    logger.info(f"Local dev: Using gcloud CLI to impersonate {TARGET_SERVICE_ACCOUNT}")
+    result = subprocess.run(
+        ['gcloud', 'auth', 'print-access-token'],
+        capture_output=True, text=True, timeout=10
     )
+    if result.returncode != 0:
+        raise ValueError(f"Failed to get gcloud access token: {result.stderr}")
 
-    try:
-        # First try with ADC credentials
-        logger.info(f"Trying impersonated credentials with SA: {target_service_account}")
-        impersonated = impersonated_credentials.Credentials(
-            source_credentials=source_credentials,
-            target_principal=target_service_account,
-            target_scopes=['https://www.googleapis.com/auth/cloud-platform'],
-        )
-        # Test if signing works
-        impersonated.sign_bytes(b"test")
-        logger.info("ADC impersonation works")
-        _signing_credentials = impersonated
-        return _signing_credentials
-    except Exception as e:
-        logger.warning(f"ADC impersonation failed: {e}")
+    access_token = result.stdout.strip()
+    gcloud_creds = OAuthCredentials(token=access_token)
 
-    # Fallback: Use gcloud CLI token (works when gcloud has different auth than ADC)
-    try:
-        logger.info("Falling back to gcloud CLI credentials")
-        result = subprocess.run(
-            ['gcloud', 'auth', 'print-access-token'],
-            capture_output=True, text=True, timeout=10
-        )
-        if result.returncode == 0:
-            access_token = result.stdout.strip()
-            gcloud_creds = OAuthCredentials(token=access_token)
-            impersonated = impersonated_credentials.Credentials(
-                source_credentials=gcloud_creds,
-                target_principal=target_service_account,
-                target_scopes=['https://www.googleapis.com/auth/cloud-platform'],
-            )
-            # Test if signing works
-            impersonated.sign_bytes(b"test")
-            logger.info("gcloud CLI impersonation works")
-            _signing_credentials = impersonated
-            return _signing_credentials
-    except Exception as e:
-        logger.warning(f"gcloud CLI fallback failed: {e}")
-
-    raise ValueError(
-        "Cannot sign URLs. Ensure you have roles/iam.serviceAccountTokenCreator "
-        f"on {target_service_account}"
+    impersonated = impersonated_credentials.Credentials(
+        source_credentials=gcloud_creds,
+        target_principal=TARGET_SERVICE_ACCOUNT,
+        target_scopes=['https://www.googleapis.com/auth/cloud-platform'],
     )
+    # Verify signing works
+    impersonated.sign_bytes(b"test")
+    logger.info("Impersonation successful")
+    _signing_credentials = impersonated
+    return _signing_credentials
+
+
+def get_storage_client() -> storage.Client:
+    """Get GCS client with appropriate credentials."""
+    global _storage_client
+    if _storage_client is None:
+        credentials = get_signing_credentials()
+        _storage_client = storage.Client(credentials=credentials)
+    return _storage_client
 
 
 def generate_upload_url(
@@ -130,19 +119,19 @@ def generate_upload_url(
         ValueError: If content_type is not allowed or file too large
     """
     # Validate content type
-    if content_type not in ALLOWED_CONTENT_TYPES:
+    if content_type not in ALLOWED_VIDEO_CONTENT_TYPES:
         raise ValueError(
             f"Invalid content type: {content_type}. "
-            f"Allowed: {ALLOWED_CONTENT_TYPES}"
+            f"Allowed: {ALLOWED_VIDEO_CONTENT_TYPES}"
         )
 
     # Validate file size if provided
     if file_size is not None:
-        max_bytes = MAX_FILE_SIZE_MB * 1024 * 1024
+        max_bytes = MAX_VIDEO_SIZE_MB * 1024 * 1024
         if file_size > max_bytes:
             raise ValueError(
                 f"File too large: {file_size / 1024 / 1024:.1f}MB. "
-                f"Max: {MAX_FILE_SIZE_MB}MB"
+                f"Max: {MAX_VIDEO_SIZE_MB}MB"
             )
 
     # Generate unique object name
@@ -163,6 +152,70 @@ def generate_upload_url(
         expiration=timedelta(minutes=UPLOAD_URL_EXPIRY_MINUTES),
         method="PUT",
         content_type=content_type,
+        credentials=credentials,
+    )
+
+    return {
+        "signed_url": signed_url,
+        "object_name": object_name,
+        "expiry_minutes": UPLOAD_URL_EXPIRY_MINUTES,
+        "bucket": BUCKET_NAME,
+    }
+
+
+def generate_replay_upload_url(
+    filename: str,
+    file_size: Optional[int] = None,
+) -> dict:
+    """
+    Generate a signed URL for uploading a replay/demo file to GCS.
+
+    Args:
+        filename: Original filename (used for extension validation)
+        file_size: File size in bytes (optional, for validation)
+
+    Returns:
+        dict with signed_url, object_name, and expiry_minutes
+
+    Raises:
+        ValueError: If file extension is not allowed or file too large
+    """
+    # Validate file extension
+    extension = os.path.splitext(filename)[1].lower()
+    allowed_extensions = [".aoe2record", ".dem"]
+    if extension not in allowed_extensions:
+        raise ValueError(
+            f"Invalid file extension: {extension}. "
+            f"Allowed: {allowed_extensions}"
+        )
+
+    # Validate file size if provided
+    if file_size is not None:
+        max_bytes = MAX_REPLAY_SIZE_MB * 1024 * 1024
+        if file_size > max_bytes:
+            raise ValueError(
+                f"File too large: {file_size / 1024 / 1024:.1f}MB. "
+                f"Max: {MAX_REPLAY_SIZE_MB}MB"
+            )
+
+    # Generate unique object name
+    object_name = f"replays/{uuid.uuid4()}{extension}"
+
+    # Get signing credentials
+    credentials = get_signing_credentials()
+
+    # Get bucket and blob
+    client = get_storage_client()
+    bucket = client.bucket(BUCKET_NAME)
+    blob = bucket.blob(object_name)
+
+    # Generate signed URL for upload (PUT)
+    # Use application/octet-stream for binary files
+    signed_url = blob.generate_signed_url(
+        version="v4",
+        expiration=timedelta(minutes=UPLOAD_URL_EXPIRY_MINUTES),
+        method="PUT",
+        content_type="application/octet-stream",
         credentials=credentials,
     )
 

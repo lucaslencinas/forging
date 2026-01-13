@@ -4,6 +4,7 @@ Forging API - AI-powered game analysis for esports improvement
 import logging
 import os
 import tempfile
+import uuid
 
 from dotenv import load_dotenv
 
@@ -23,7 +24,9 @@ from fastapi.responses import JSONResponse
 from models import (
     AnalysisResponse, GameSummary, Player, PlayerUptime, Analysis,
     VideoUploadRequest, VideoUploadResponse, VideoDownloadResponse,
-    VideoAnalysisResponse,
+    VideoAnalysisResponse, ReplayUploadRequest, ReplayUploadResponse,
+    SavedAnalysisRequest, SavedAnalysisResponse, AnalysisListItem,
+    AnalysisListResponse, AnalysisDetailResponse, TimestampedTip,
 )
 from services.aoe2_parser import parse_aoe2_replay
 from services.cs2_parser import parse_cs2_demo
@@ -31,6 +34,7 @@ from services.analyzer import analyze_with_gemini, list_available_models
 from services import gcs
 from services import video_analyzer
 from services import cs2_video_analyzer
+from services import firestore
 from services.llm.gemini import GeminiProvider
 
 list_available_models()
@@ -270,6 +274,205 @@ async def analyze_video_endpoint(
         # Cleanup temp files
         if replay_tmp_path:
             os.unlink(replay_tmp_path)
+
+
+# Replay upload endpoint
+@app.post("/api/replay/upload-url", response_model=ReplayUploadResponse)
+async def get_replay_upload_url(request: ReplayUploadRequest) -> ReplayUploadResponse:
+    """Generate a signed URL for uploading a replay/demo file to GCS."""
+    try:
+        result = gcs.generate_replay_upload_url(
+            filename=request.filename,
+            file_size=request.file_size,
+        )
+        return ReplayUploadResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# Saved analysis endpoints
+@app.post("/api/analysis", response_model=SavedAnalysisResponse)
+async def create_analysis(request: SavedAnalysisRequest) -> SavedAnalysisResponse:
+    """
+    Create and save a new analysis.
+
+    1. Runs video analysis (downloads from GCS, analyzes with Gemini)
+    2. Optionally parses replay if provided
+    3. Saves results to Firestore
+    4. Returns shareable URL
+    """
+    # Generate analysis ID
+    analysis_id = str(uuid.uuid4())[:8]
+
+    # Parse replay if provided
+    replay_data = None
+    replay_tmp_path = None
+
+    if request.replay_object_name:
+        try:
+            # Download replay from GCS
+            replay_tmp_path = gcs.download_to_temp(request.replay_object_name)
+
+            # Parse based on game type
+            if request.game_type == "aoe2":
+                replay_data = parse_aoe2_replay(replay_tmp_path)
+            elif request.game_type == "cs2":
+                replay_data = parse_cs2_demo(replay_tmp_path)
+        except Exception as e:
+            logger.warning(f"Failed to parse replay: {e}")
+        finally:
+            if replay_tmp_path and os.path.exists(replay_tmp_path):
+                os.unlink(replay_tmp_path)
+
+    try:
+        # Run video analysis
+        if request.game_type == "cs2":
+            result = await cs2_video_analyzer.analyze_cs2_video(
+                video_object_name=request.video_object_name,
+                demo_data=replay_data,
+                duration_seconds=0,
+                model=request.model,
+            )
+        else:
+            result = await video_analyzer.analyze_video(
+                video_object_name=request.video_object_name,
+                replay_data=replay_data,
+                duration_seconds=0,
+                model=request.model,
+            )
+
+        # Extract player names and game info from replay data
+        players = []
+        map_name = None
+        duration = None
+        if replay_data and "summary" in replay_data:
+            summary = replay_data["summary"]
+            players = [p.get("name", "Unknown") for p in summary.get("players", [])]
+            map_name = summary.get("map")
+            duration = summary.get("duration")
+
+        # Generate title if not provided
+        title = request.title
+        if not title:
+            if players:
+                title = f"{request.game_type.upper()}: {' vs '.join(players[:2])}"
+                if map_name:
+                    title += f" on {map_name}"
+            else:
+                title = f"{request.game_type.upper()} Analysis"
+
+        # Save to Firestore
+        analysis_record = {
+            "id": analysis_id,
+            "game_type": request.game_type,
+            "title": title,
+            "creator_name": request.creator_name,
+            "players": players,
+            "map": map_name,
+            "duration": duration,
+            "video_object_name": request.video_object_name,
+            "replay_object_name": request.replay_object_name,
+            "thumbnail_url": None,  # Will be set by thumbnail generation later
+            "tips": [tip.model_dump() for tip in result.tips],
+            "tips_count": len(result.tips),
+            "game_summary": result.game_summary.model_dump() if result.game_summary else None,
+            "model_used": result.model_used,
+            "provider": result.provider,
+            "is_public": request.is_public,
+        }
+
+        await firestore.save_analysis(analysis_record)
+
+        # Build share URL (will be frontend URL in production)
+        share_url = f"/games/{analysis_id}"
+
+        return SavedAnalysisResponse(
+            id=analysis_id,
+            share_url=share_url,
+            game_type=request.game_type,
+            title=title,
+            creator_name=request.creator_name,
+            players=players,
+            map=map_name,
+            duration=duration,
+            video_object_name=request.video_object_name,
+            replay_object_name=request.replay_object_name,
+            thumbnail_url=None,
+            tips=result.tips,
+            tips_count=len(result.tips),
+            game_summary=result.game_summary,
+            model_used=result.model_used,
+            provider=result.provider,
+            created_at=analysis_record["created_at"].isoformat(),
+        )
+
+    except Exception as e:
+        logger.exception(f"Failed to create analysis: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+@app.get("/api/analysis/{analysis_id}", response_model=AnalysisDetailResponse)
+async def get_analysis(analysis_id: str) -> AnalysisDetailResponse:
+    """Get a saved analysis by ID."""
+    record = await firestore.get_analysis(analysis_id)
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    # Generate signed URL for video playback
+    try:
+        video_url_data = gcs.generate_download_url(record["video_object_name"])
+        video_signed_url = video_url_data["signed_url"]
+    except Exception as e:
+        logger.warning(f"Failed to generate video URL: {e}")
+        video_signed_url = ""
+
+    # Convert tips back to TimestampedTip objects
+    tips = [TimestampedTip(**tip) for tip in record.get("tips", [])]
+
+    # Reconstruct GameSummary if present
+    game_summary = None
+    if record.get("game_summary"):
+        game_summary = GameSummary(**record["game_summary"])
+
+    return AnalysisDetailResponse(
+        id=record["id"],
+        game_type=record["game_type"],
+        title=record["title"],
+        creator_name=record.get("creator_name"),
+        players=record.get("players", []),
+        map=record.get("map"),
+        duration=record.get("duration"),
+        video_signed_url=video_signed_url,
+        replay_object_name=record.get("replay_object_name"),
+        thumbnail_url=record.get("thumbnail_url"),
+        tips=tips,
+        tips_count=record.get("tips_count", len(tips)),
+        game_summary=game_summary,
+        model_used=record["model_used"],
+        provider=record["provider"],
+        created_at=record["created_at"],
+    )
+
+
+@app.get("/api/analyses", response_model=AnalysisListResponse)
+async def list_analyses(
+    limit: int = 12,
+    game_type: str = None,
+) -> AnalysisListResponse:
+    """List recent public analyses for the community carousel."""
+    analyses = await firestore.list_analyses(
+        limit=limit,
+        game_type=game_type,
+        public_only=True,
+    )
+
+    items = [AnalysisListItem(**a) for a in analyses]
+
+    return AnalysisListResponse(
+        analyses=items,
+        total=len(items),
+    )
 
 
 if __name__ == "__main__":
