@@ -48,4 +48,6 @@ jobs:
             --region=${{ env.REGION }} \
             --platform=managed \
             --allow-unauthenticated \
+            --memory=2Gi \
+            --timeout=600 \
             --set-env-vars="^##^ALLOWED_ORIGINS=${{ env.FRONTEND_URL }},http://localhost:3000"
