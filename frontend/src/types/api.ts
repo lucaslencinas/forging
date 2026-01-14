@@ -118,6 +118,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/video/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Video Models
+         * @description Get list of available video analysis models.
+         */
+        get: operations["get_video_models_api_video_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/analyze/video": {
         parameters: {
             query?: never;
@@ -128,20 +148,109 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Analyze Video
+         * Analyze Video Endpoint
          * @description Analyze a gameplay video using Gemini's multimodal capabilities.
          *
-         *     Optionally include a replay file (.aoe2record) for richer analysis
-         *     by combining visual and game data.
+         *     The video should already be uploaded to GCS (via the /api/video/upload-url flow).
+         *     Optionally include a replay/demo file for richer analysis.
+         *
+         *     Supported game types:
+         *     - aoe2: Age of Empires II (.aoe2record)
+         *     - cs2: Counter-Strike 2 (.dem)
          *
          *     This endpoint:
-         *     1. Saves the video to a temp file
+         *     1. Downloads video from GCS
          *     2. Uploads it to Gemini File API
-         *     3. Optionally parses the replay for structured game data
+         *     3. Optionally parses the replay/demo for structured game data
          *     4. Analyzes with Gemini, combining video + replay data
          *     5. Returns timestamped coaching tips
          */
-        post: operations["analyze_video_api_analyze_video_post"];
+        post: operations["analyze_video_endpoint_api_analyze_video_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/replay/upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Replay Upload Url
+         * @description Generate a signed URL for uploading a replay/demo file to GCS.
+         */
+        post: operations["get_replay_upload_url_api_replay_upload_url_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Analysis
+         * @description Create and save a new analysis.
+         *
+         *     1. Runs video analysis (downloads from GCS, analyzes with Gemini)
+         *     2. Optionally parses replay if provided
+         *     3. Saves results to Firestore
+         *     4. Returns shareable URL
+         */
+        post: operations["create_analysis_api_analysis_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analysis/{analysis_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Analysis
+         * @description Get a saved analysis by ID.
+         */
+        get: operations["get_analysis_api_analysis__analysis_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analyses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Analyses
+         * @description List recent public analyses for the community carousel.
+         */
+        get: operations["list_analyses_api_analyses_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -169,6 +278,76 @@ export interface components {
             error?: string | null;
         };
         /**
+         * AnalysisDetailResponse
+         * @description Full analysis data for viewing a shared analysis.
+         */
+        AnalysisDetailResponse: {
+            /** Id */
+            id: string;
+            /** Game Type */
+            game_type: string;
+            /** Title */
+            title: string;
+            /** Creator Name */
+            creator_name?: string | null;
+            /**
+             * Players
+             * @default []
+             */
+            players: string[];
+            /** Map */
+            map?: string | null;
+            /** Duration */
+            duration?: string | null;
+            /** Video Signed Url */
+            video_signed_url: string;
+            /** Replay Object Name */
+            replay_object_name?: string | null;
+            /** Thumbnail Url */
+            thumbnail_url?: string | null;
+            /** Tips */
+            tips: components["schemas"]["TimestampedTip"][];
+            /** Tips Count */
+            tips_count: number;
+            game_summary?: components["schemas"]["GameSummary"] | null;
+            /** Model Used */
+            model_used: string;
+            /** Provider */
+            provider: string;
+            /** Created At */
+            created_at: string;
+        };
+        /**
+         * AnalysisListItem
+         * @description Lightweight analysis data for carousel display.
+         */
+        AnalysisListItem: {
+            /** Id */
+            id: string;
+            /** Game Type */
+            game_type: string;
+            /** Title */
+            title: string;
+            /** Creator Name */
+            creator_name?: string | null;
+            /** Thumbnail Url */
+            thumbnail_url?: string | null;
+            /** Tips Count */
+            tips_count: number;
+            /** Created At */
+            created_at: string;
+        };
+        /**
+         * AnalysisListResponse
+         * @description Response with list of analyses.
+         */
+        AnalysisListResponse: {
+            /** Analyses */
+            analyses: components["schemas"]["AnalysisListItem"][];
+            /** Total */
+            total: number;
+        };
+        /**
          * AnalysisResponse
          * @description Response from the analyze endpoints.
          */
@@ -194,18 +373,22 @@ export interface components {
              */
             demo: string;
         };
-        /** Body_analyze_video_api_analyze_video_post */
-        Body_analyze_video_api_analyze_video_post: {
-            /**
-             * Video
-             * Format: binary
-             */
-            video: string;
+        /** Body_analyze_video_endpoint_api_analyze_video_post */
+        Body_analyze_video_endpoint_api_analyze_video_post: {
+            /** Video Object Name */
+            video_object_name: string;
             /**
              * Replay
              * Format: binary
              */
             replay?: string;
+            /** Model */
+            model?: string;
+            /**
+             * Game Type
+             * @default aoe2
+             */
+            game_type: string;
         };
         /**
          * GameSummary
@@ -260,6 +443,95 @@ export interface components {
             castle_age?: number | null;
             /** Imperial Age */
             imperial_age?: number | null;
+        };
+        /**
+         * ReplayUploadRequest
+         * @description Request to generate a signed upload URL for replay/demo files.
+         */
+        ReplayUploadRequest: {
+            /** Filename */
+            filename: string;
+            /** File Size */
+            file_size?: number | null;
+        };
+        /**
+         * ReplayUploadResponse
+         * @description Response with signed upload URL for replay/demo files.
+         */
+        ReplayUploadResponse: {
+            /** Signed Url */
+            signed_url: string;
+            /** Object Name */
+            object_name: string;
+            /** Expiry Minutes */
+            expiry_minutes: number;
+            /** Bucket */
+            bucket: string;
+        };
+        /**
+         * SavedAnalysisRequest
+         * @description Request to create and save an analysis.
+         */
+        SavedAnalysisRequest: {
+            /** Video Object Name */
+            video_object_name: string;
+            /** Replay Object Name */
+            replay_object_name?: string | null;
+            /** Game Type */
+            game_type: string;
+            /** Model */
+            model?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Creator Name */
+            creator_name?: string | null;
+            /**
+             * Is Public
+             * @default true
+             */
+            is_public: boolean;
+        };
+        /**
+         * SavedAnalysisResponse
+         * @description Response with saved analysis data and share URL.
+         */
+        SavedAnalysisResponse: {
+            /** Id */
+            id: string;
+            /** Share Url */
+            share_url: string;
+            /** Game Type */
+            game_type: string;
+            /** Title */
+            title: string;
+            /** Creator Name */
+            creator_name?: string | null;
+            /**
+             * Players
+             * @default []
+             */
+            players: string[];
+            /** Map */
+            map?: string | null;
+            /** Duration */
+            duration?: string | null;
+            /** Video Object Name */
+            video_object_name: string;
+            /** Replay Object Name */
+            replay_object_name?: string | null;
+            /** Thumbnail Url */
+            thumbnail_url?: string | null;
+            /** Tips */
+            tips: components["schemas"]["TimestampedTip"][];
+            /** Tips Count */
+            tips_count: number;
+            game_summary?: components["schemas"]["GameSummary"] | null;
+            /** Model Used */
+            model_used: string;
+            /** Provider */
+            provider: string;
+            /** Created At */
+            created_at: string;
         };
         /**
          * TimestampedTip
@@ -520,7 +792,27 @@ export interface operations {
             };
         };
     };
-    analyze_video_api_analyze_video_post: {
+    get_video_models_api_video_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    analyze_video_endpoint_api_analyze_video_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -529,7 +821,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_analyze_video_api_analyze_video_post"];
+                "multipart/form-data": components["schemas"]["Body_analyze_video_endpoint_api_analyze_video_post"];
             };
         };
         responses: {
@@ -540,6 +832,135 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VideoAnalysisResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replay_upload_url_api_replay_upload_url_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplayUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_analysis_api_analysis_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedAnalysisRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedAnalysisResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_analysis_api_analysis__analysis_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                analysis_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_analyses_api_analyses_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                game_type?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisListResponse"];
                 };
             };
             /** @description Validation Error */
