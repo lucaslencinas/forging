@@ -42,28 +42,39 @@ _storage_client = None
 _signing_credentials = None
 
 
+def is_running_on_cloud_run() -> bool:
+    """Check if we're running on Cloud Run (or other GCP compute environment)."""
+    # Cloud Run sets K_SERVICE environment variable
+    return os.getenv("K_SERVICE") is not None
+
+
 def get_signing_credentials():
     """
     Get credentials that can sign URLs.
 
-    On Cloud Run: Uses the default service account directly.
+    On Cloud Run: Uses the default service account directly (with IAM signing).
     Locally: Uses gcloud CLI token to impersonate the service account.
 
-    Requires: Your gcloud account must have roles/iam.serviceAccountTokenCreator
+    Requires (local only): Your gcloud account must have roles/iam.serviceAccountTokenCreator
     on the target service account.
     """
     global _signing_credentials
     if _signing_credentials is not None:
         return _signing_credentials
 
-    # Try to get default credentials
-    source_credentials, project = default()
-
-    # Check if we're running as a service account (Cloud Run)
-    # Service accounts have sign_bytes capability
-    if hasattr(source_credentials, 'sign_bytes') and hasattr(source_credentials, 'service_account_email'):
-        logger.info(f"Using direct service account: {source_credentials.service_account_email}")
-        _signing_credentials = source_credentials
+    # On Cloud Run, use impersonated credentials from the default SA
+    # This is needed because compute credentials can't sign directly
+    if is_running_on_cloud_run():
+        source_credentials, project = default()
+        logger.info("Running on Cloud Run, using IAM signing credentials")
+        # Create impersonated credentials that can sign
+        # The Cloud Run SA impersonates itself to get signing capability
+        impersonated = impersonated_credentials.Credentials(
+            source_credentials=source_credentials,
+            target_principal=TARGET_SERVICE_ACCOUNT,
+            target_scopes=['https://www.googleapis.com/auth/cloud-platform'],
+        )
+        _signing_credentials = impersonated
         return _signing_credentials
 
     # Local development: Use gcloud CLI token to impersonate the service account

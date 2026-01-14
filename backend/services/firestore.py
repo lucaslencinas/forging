@@ -30,23 +30,26 @@ TARGET_SERVICE_ACCOUNT = os.getenv(
 _firestore_client: Optional[firestore.Client] = None
 
 
+def is_running_on_cloud_run() -> bool:
+    """Check if we're running on Cloud Run."""
+    # Cloud Run sets K_SERVICE environment variable
+    return os.getenv("K_SERVICE") is not None
+
+
 def get_credentials():
     """
     Get credentials for Firestore access.
 
-    On Cloud Run: Uses the default service account directly.
+    On Cloud Run: Uses the default service account directly (no impersonation needed).
     Locally: Uses gcloud CLI token to impersonate the service account.
 
-    Requires: Your gcloud account must have roles/iam.serviceAccountTokenCreator
+    Requires (local only): Your gcloud account must have roles/iam.serviceAccountTokenCreator
     on the target service account.
     """
-    # Try to get default credentials
-    source_credentials, project = default()
-
-    # Check if we're running as a service account (Cloud Run)
-    # Service accounts have sign_bytes capability
-    if hasattr(source_credentials, 'sign_bytes') and hasattr(source_credentials, 'service_account_email'):
-        logger.info(f"Using direct service account: {source_credentials.service_account_email}")
+    # On Cloud Run, use default credentials directly
+    if is_running_on_cloud_run():
+        source_credentials, project = default()
+        logger.info("Running on Cloud Run, using default credentials")
         return source_credentials
 
     # Local development: Use gcloud CLI token to impersonate the service account
