@@ -16,6 +16,10 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 - ✅ **Video player with clickable timestamps**
 - ✅ **Gemini 2.5/3.0 model selection** for video analysis
 - ✅ Automatic CI/CD deployment via GitHub Actions
+- ✅ **Shareable analysis links** (`/games/[id]`)
+- ✅ **Marketing landing page** with community carousel
+- ✅ **Firestore storage** for persistent analyses
+- ✅ **Multi-key Gemini API** with automatic rate limit fallback
 
 ### Live Demo
 
@@ -25,13 +29,10 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 | Backend API | https://forging-backend-nht57oxpca-uc.a.run.app |
 
 ### What's Missing / TODO
+- ⬜ Thumbnail generation for carousel
 - ⬜ User accounts and history
 - ⬜ Build order visualization
 - ⬜ Comparison with pro player benchmarks
-- ✅ ~~Video analysis with timestamped coaching tips~~
-- ✅ ~~Video player with clickable timestamps~~
-- ✅ ~~Production deployment~~
-- ✅ ~~Video upload infrastructure~~
 
 ## Supported Games
 

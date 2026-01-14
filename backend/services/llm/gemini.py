@@ -51,21 +51,17 @@ class GeminiProvider(LLMProvider):
     def __init__(self, model: Optional[str] = None):
         # Support multiple API keys with fallback
         api_keys_str = os.getenv("GEMINI_API_KEYS", "")
-        logger.info(f"GEMINI_API_KEYS env var present: {bool(api_keys_str)}, length: {len(api_keys_str)}")
         if api_keys_str:
             self.api_keys = [k.strip() for k in api_keys_str.split(",") if k.strip()]
-            logger.info(f"Parsed {len(self.api_keys)} Gemini API keys")
         else:
             # Fallback to single key for backwards compatibility
             single_key = os.getenv("GEMINI_API_KEY", "")
-            logger.info(f"GEMINI_API_KEY env var present: {bool(single_key)}")
             self.api_keys = [single_key] if single_key else []
 
         self._current_key_index = 0
         self._key_cooldowns: dict[int, float] = {}  # index -> cooldown_until timestamp
 
         self.enabled = os.getenv("GEMINI_ENABLED", "true").lower() == "true"
-        logger.info(f"Gemini provider enabled: {self.enabled}, has keys: {len(self.api_keys) > 0}")
         self.model = model or self.MODELS[0]
         self._genai = None
         self._configured_key: Optional[str] = None  # Track which key is configured
