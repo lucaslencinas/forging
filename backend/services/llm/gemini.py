@@ -27,7 +27,7 @@ class VideoAnalysisResult:
 
 
 class GeminiProvider(LLMProvider):
-    """Gemini API provider."""
+    """Gemini API provider with multi-key support and rate limit fallback."""
 
     # Models to try in order of preference (all available on free AI Studio tier)
     MODELS = [
@@ -45,24 +45,98 @@ class GeminiProvider(LLMProvider):
         "gemini-2.0-flash",      # Stable, fast
     ]
 
+    # Cooldown period for rate-limited keys (24 hours for daily quota limits)
+    KEY_COOLDOWN_SECONDS = 86400
+
     def __init__(self, model: Optional[str] = None):
-        self.api_key = os.getenv("GEMINI_API_KEY")
+        # Support multiple API keys with fallback
+        api_keys_str = os.getenv("GEMINI_API_KEYS", "")
+        logger.info(f"GEMINI_API_KEYS env var present: {bool(api_keys_str)}, length: {len(api_keys_str)}")
+        if api_keys_str:
+            self.api_keys = [k.strip() for k in api_keys_str.split(",") if k.strip()]
+            logger.info(f"Parsed {len(self.api_keys)} Gemini API keys")
+        else:
+            # Fallback to single key for backwards compatibility
+            single_key = os.getenv("GEMINI_API_KEY", "")
+            logger.info(f"GEMINI_API_KEY env var present: {bool(single_key)}")
+            self.api_keys = [single_key] if single_key else []
+
+        self._current_key_index = 0
+        self._key_cooldowns: dict[int, float] = {}  # index -> cooldown_until timestamp
+
         self.enabled = os.getenv("GEMINI_ENABLED", "true").lower() == "true"
+        logger.info(f"Gemini provider enabled: {self.enabled}, has keys: {len(self.api_keys) > 0}")
         self.model = model or self.MODELS[0]
         self._genai = None
+        self._configured_key: Optional[str] = None  # Track which key is configured
 
     @property
     def name(self) -> str:
         return "gemini"
 
     def is_available(self) -> bool:
-        return bool(self.api_key) and self.enabled
+        return bool(self._get_current_api_key()) and self.enabled
+
+    def _get_current_api_key(self) -> Optional[str]:
+        """Get the current API key, skipping keys on cooldown."""
+        if not self.api_keys:
+            return None
+
+        now = time.time()
+        for i in range(len(self.api_keys)):
+            idx = (self._current_key_index + i) % len(self.api_keys)
+            cooldown_until = self._key_cooldowns.get(idx, 0)
+            if now >= cooldown_until:
+                self._current_key_index = idx
+                return self.api_keys[idx]
+
+        # All keys on cooldown
+        logger.warning("All Gemini API keys are on cooldown")
+        return None
+
+    def _rotate_key_on_rate_limit(self) -> bool:
+        """Put current key on cooldown and rotate to next. Returns True if a new key is available."""
+        if len(self.api_keys) <= 1:
+            return False
+
+        old_index = self._current_key_index
+        self._key_cooldowns[old_index] = time.time() + self.KEY_COOLDOWN_SECONDS
+        logger.warning(f"API key #{old_index + 1} rate limited, putting on 24h cooldown")
+
+        # Try to find a non-cooldown key
+        new_key = self._get_current_api_key()
+        if new_key and self._current_key_index != old_index:
+            logger.info(f"Rotated to API key #{self._current_key_index + 1}")
+            # Reset client to use new key
+            self._genai = None
+            self._configured_key = None
+            return True
+
+        return False
+
+    def _is_rate_limit_error(self, error: Exception) -> bool:
+        """Check if error is a rate limit error."""
+        error_str = str(error).lower()
+        return (
+            "429" in error_str or
+            "rate limit" in error_str or
+            "quota" in error_str or
+            "resource exhausted" in error_str
+        )
 
     def _get_client(self):
-        if self._genai is None:
+        current_key = self._get_current_api_key()
+        if current_key is None:
+            raise ValueError("No Gemini API key available (all keys on cooldown)")
+
+        # Reconfigure if key changed
+        if self._genai is None or self._configured_key != current_key:
             import google.generativeai as genai
-            genai.configure(api_key=self.api_key)
+            genai.configure(api_key=current_key)
             self._genai = genai
+            self._configured_key = current_key
+            if len(self.api_keys) > 1:
+                logger.info(f"Configured Gemini with API key #{self._current_key_index + 1} of {len(self.api_keys)}")
         return self._genai
 
     async def generate(self, prompt: str, system_prompt: Optional[str] = None) -> LLMResponse:
@@ -71,37 +145,59 @@ class GeminiProvider(LLMProvider):
                 content="",
                 model=self.model,
                 provider=self.name,
-                error="GEMINI_API_KEY not configured"
+                error="GEMINI_API_KEY not configured or all keys on cooldown"
             )
 
-        genai = self._get_client()
-
-        # Try models in order until one works
-        models_to_try = [self.model] if self.model not in self.MODELS else self.MODELS
+        # Try with current key, rotate on rate limit
+        max_key_attempts = len(self.api_keys)
         last_error = None
 
-        for model_name in models_to_try:
+        for key_attempt in range(max_key_attempts):
             try:
-                model = genai.GenerativeModel(
-                    model_name=model_name,
-                    system_instruction=system_prompt
-                )
-                response = model.generate_content(prompt)
-                return LLMResponse(
-                    content=response.text,
-                    model=model_name,
-                    provider=self.name
-                )
-            except Exception as e:
-                last_error = str(e)
-                logger.warning(f"Gemini model {model_name} failed: {e}")
-                continue
+                genai = self._get_client()
+
+                # Try models in order until one works
+                models_to_try = [self.model] if self.model not in self.MODELS else self.MODELS
+
+                for model_name in models_to_try:
+                    try:
+                        model = genai.GenerativeModel(
+                            model_name=model_name,
+                            system_instruction=system_prompt
+                        )
+                        response = model.generate_content(prompt)
+                        return LLMResponse(
+                            content=response.text,
+                            model=model_name,
+                            provider=self.name
+                        )
+                    except Exception as e:
+                        last_error = e
+                        logger.warning(f"Gemini model {model_name} failed: {e}")
+
+                        # Check if rate limit error and try rotating key
+                        if self._is_rate_limit_error(e) and self._rotate_key_on_rate_limit():
+                            break  # Break inner loop to retry with new key
+                        continue
+
+                # If we get here without returning, all models failed for this key
+                # Check if last error was rate limit and we should try another key
+                if last_error and self._is_rate_limit_error(last_error):
+                    if not self._rotate_key_on_rate_limit():
+                        break  # No more keys available
+                else:
+                    break  # Not a rate limit error, don't retry
+
+            except ValueError as e:
+                # No API key available
+                last_error = e
+                break
 
         return LLMResponse(
             content="",
             model=self.model,
             provider=self.name,
-            error=f"All Gemini models failed. Last error: {last_error}"
+            error=f"All Gemini API keys/models failed. Last error: {last_error}"
         )
 
     def upload_video(self, file_path: str, mime_type: str = "video/mp4") -> str:
@@ -179,47 +275,59 @@ class GeminiProvider(LLMProvider):
                 model=self.model,
                 provider=self.name,
                 file_name=file_name,
-                error="GEMINI_API_KEY not configured"
+                error="GEMINI_API_KEY not configured or all keys on cooldown"
             )
 
-        genai = self._get_client()
         model_name = model or os.getenv("VIDEO_ANALYSIS_MODEL", "gemini-2.5-flash")
+        max_key_attempts = len(self.api_keys)
+        last_error = None
 
-        try:
-            # Get the file reference
-            video_file = genai.get_file(file_name)
+        for key_attempt in range(max_key_attempts):
+            try:
+                genai = self._get_client()
 
-            # Create model with system prompt and low temperature for accuracy
-            generation_config = genai.GenerationConfig(
-                temperature=0.2,  # Low temperature for factual, less creative responses
-            )
-            gemini_model = genai.GenerativeModel(
-                model_name=model_name,
-                system_instruction=system_prompt,
-                generation_config=generation_config
-            )
+                # Get the file reference
+                video_file = genai.get_file(file_name)
 
-            # Generate content with video + text prompt
-            # Set longer timeout for video analysis (default is 60s, videos can take 2-5 min)
-            logger.info(f"Analyzing video with model: {model_name}")
-            request_options = {"timeout": 600}  # 10 minute timeout
-            response = gemini_model.generate_content(
-                [video_file, prompt],
-                request_options=request_options
-            )
+                # Create model with system prompt and low temperature for accuracy
+                generation_config = genai.GenerationConfig(
+                    temperature=0.2,  # Low temperature for factual, less creative responses
+                )
+                gemini_model = genai.GenerativeModel(
+                    model_name=model_name,
+                    system_instruction=system_prompt,
+                    generation_config=generation_config
+                )
 
-            return VideoAnalysisResult(
-                content=response.text,
-                model=model_name,
-                provider=self.name,
-                file_name=file_name
-            )
-        except Exception as e:
-            logger.error(f"Video analysis failed: {e}")
-            return VideoAnalysisResult(
-                content="",
-                model=model_name,
-                provider=self.name,
-                file_name=file_name,
-                error=str(e)
-            )
+                # Generate content with video + text prompt
+                # Set longer timeout for video analysis (default is 60s, videos can take 2-5 min)
+                logger.info(f"Analyzing video with model: {model_name}")
+                request_options = {"timeout": 600}  # 10 minute timeout
+                response = gemini_model.generate_content(
+                    [video_file, prompt],
+                    request_options=request_options
+                )
+
+                return VideoAnalysisResult(
+                    content=response.text,
+                    model=model_name,
+                    provider=self.name,
+                    file_name=file_name
+                )
+            except Exception as e:
+                last_error = e
+                logger.error(f"Video analysis failed: {e}")
+
+                # Check if rate limit error and try rotating key
+                if self._is_rate_limit_error(e) and self._rotate_key_on_rate_limit():
+                    logger.info("Retrying video analysis with new API key")
+                    continue  # Retry with new key
+                break  # Not a rate limit error or no more keys
+
+        return VideoAnalysisResult(
+            content="",
+            model=model_name,
+            provider=self.name,
+            file_name=file_name,
+            error=str(last_error) if last_error else "Unknown error"
+        )
