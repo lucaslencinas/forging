@@ -10,13 +10,13 @@ import type { components } from "@/types/api";
 type GameType = "aoe2" | "cs2" | null;
 type AnalysisState = "idle" | "uploading" | "analyzing" | "video-analyzing" | "complete" | "video-complete" | "error";
 type AnalysisResponse = components["schemas"]["AnalysisResponse"];
-type VideoAnalysisResponse = components["schemas"]["VideoAnalysisResponse"];
+type SavedAnalysisResponse = components["schemas"]["SavedAnalysisResponse"];
 
 export default function Home() {
   const [selectedGame, setSelectedGame] = useState<GameType>(null);
   const [analysisState, setAnalysisState] = useState<AnalysisState>("idle");
   const [analysisResult, setAnalysisResult] = useState<AnalysisResponse | null>(null);
-  const [videoAnalysisResult, setVideoAnalysisResult] = useState<VideoAnalysisResponse | null>(null);
+  const [savedAnalysisResult, setSavedAnalysisResult] = useState<SavedAnalysisResponse | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastReplayFile, setLastReplayFile] = useState<File | null>(null);
@@ -70,18 +70,6 @@ export default function Home() {
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("video_object_name", videoObjectName);
-      formData.append("game_type", selectedGame);
-
-      if (replayFile) {
-        formData.append("replay", replayFile);
-      }
-
-      if (model) {
-        formData.append("model", model);
-      }
-
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
       // Video analysis can take 5-10 minutes for large files
@@ -90,9 +78,28 @@ export default function Home() {
       const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 min timeout
 
       try {
-        const response = await fetch(`${apiUrl}/api/analyze/video`, {
+        // Use the new /api/analysis endpoint which saves to Firestore
+        const requestBody: {
+          video_object_name: string;
+          game_type: string;
+          model?: string;
+          is_public: boolean;
+        } = {
+          video_object_name: videoObjectName,
+          game_type: selectedGame,
+          is_public: true,
+        };
+
+        if (model) {
+          requestBody.model = model;
+        }
+
+        const response = await fetch(`${apiUrl}/api/analysis`, {
           method: "POST",
-          body: formData,
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
@@ -102,7 +109,7 @@ export default function Home() {
           throw new Error(errorData.detail || `Analysis failed: ${response.statusText}`);
         }
 
-        const result: VideoAnalysisResponse = await response.json();
+        const result: SavedAnalysisResponse = await response.json();
 
         // Get download URL for the video
         const downloadResponse = await fetch(
@@ -113,7 +120,7 @@ export default function Home() {
           setVideoUrl(downloadData.signed_url);
         }
 
-        setVideoAnalysisResult(result);
+        setSavedAnalysisResult(result);
         setAnalysisState("video-complete");
       } catch (fetchError) {
         clearTimeout(timeoutId);
@@ -132,7 +139,7 @@ export default function Home() {
     setSelectedGame(null);
     setAnalysisState("idle");
     setAnalysisResult(null);
-    setVideoAnalysisResult(null);
+    setSavedAnalysisResult(null);
     setVideoUrl(null);
     setError(null);
     setLastReplayFile(null);
@@ -157,7 +164,7 @@ export default function Home() {
 
       <main className="mx-auto max-w-6xl px-6 py-12">
         {/* Video Analysis Results */}
-        {analysisState === "video-complete" && videoAnalysisResult && videoUrl ? (
+        {analysisState === "video-complete" && savedAnalysisResult && videoUrl ? (
           <div className="space-y-6">
             <button
               onClick={handleReset}
@@ -166,7 +173,7 @@ export default function Home() {
               ← Back to Upload
             </button>
             <VideoAnalysisResults
-              analysis={videoAnalysisResult}
+              analysis={savedAnalysisResult}
               videoUrl={videoUrl}
             />
           </div>

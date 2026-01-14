@@ -1,21 +1,28 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { VideoPlayer, VideoPlayerRef } from "./VideoPlayer";
 import { TimestampedTips } from "./TimestampedTips";
 import type { components } from "@/types/api";
 
 type VideoAnalysisResponse = components["schemas"]["VideoAnalysisResponse"];
+type SavedAnalysisResponse = components["schemas"]["SavedAnalysisResponse"];
 type GameSummary = components["schemas"]["GameSummary"];
 
 interface VideoAnalysisResultsProps {
-  analysis: VideoAnalysisResponse;
+  analysis: VideoAnalysisResponse | SavedAnalysisResponse;
   videoUrl: string;
+}
+
+// Type guard to check if the analysis has share_url (SavedAnalysisResponse)
+function hasSaveUrl(analysis: VideoAnalysisResponse | SavedAnalysisResponse): analysis is SavedAnalysisResponse {
+  return 'share_url' in analysis;
 }
 
 export function VideoAnalysisResults({ analysis, videoUrl }: VideoAnalysisResultsProps) {
   const videoRef = useRef<VideoPlayerRef>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   const handleSeek = (seconds: number) => {
     videoRef.current?.seek(seconds);
@@ -23,6 +30,14 @@ export function VideoAnalysisResults({ analysis, videoUrl }: VideoAnalysisResult
 
   const handleTimeUpdate = (time: number) => {
     setCurrentTime(time);
+  };
+
+  const handleCopyShareUrl = async () => {
+    if (hasSaveUrl(analysis)) {
+      await navigator.clipboard.writeText(analysis.share_url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const gameSummary = analysis.game_summary;
@@ -41,6 +56,23 @@ export function VideoAnalysisResults({ analysis, videoUrl }: VideoAnalysisResult
           </span>
         </div>
       </div>
+
+      {/* Share URL */}
+      {hasSaveUrl(analysis) && (
+        <div className="flex items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/10 p-4">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-400">Analysis saved!</p>
+            <p className="text-xs text-zinc-400 mt-1">Share this link with others:</p>
+            <p className="text-sm text-zinc-300 mt-1 font-mono truncate">{analysis.share_url}</p>
+          </div>
+          <button
+            onClick={handleCopyShareUrl}
+            className="shrink-0 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
+          >
+            {copied ? "Copied!" : "Copy Link"}
+          </button>
+        </div>
+      )}
 
       {/* Game Summary (if replay was provided) */}
       {gameSummary && (
@@ -71,8 +103,8 @@ export function VideoAnalysisResults({ analysis, videoUrl }: VideoAnalysisResult
         </div>
       )}
 
-      {/* Error message */}
-      {analysis.error && (
+      {/* Error message (only VideoAnalysisResponse has error field) */}
+      {'error' in analysis && analysis.error && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-400">
           <span className="font-medium">Analysis Error:</span> {analysis.error}
         </div>

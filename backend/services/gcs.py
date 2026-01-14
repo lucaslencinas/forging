@@ -78,9 +78,11 @@ def get_signing_credentials():
         return _signing_credentials
 
     # Local development: Use gcloud CLI token to impersonate the service account
-    logger.info(f"Local dev: Using gcloud CLI to impersonate {TARGET_SERVICE_ACCOUNT}")
+    # Use explicit account to avoid conflicts with other gcloud configurations
+    local_dev_account = os.getenv("GCP_LOCAL_ACCOUNT")
+    logger.info(f"Local dev: Using gcloud CLI ({local_dev_account}) to impersonate {TARGET_SERVICE_ACCOUNT}")
     result = subprocess.run(
-        ['gcloud', 'auth', 'print-access-token'],
+        ['gcloud', 'auth', 'print-access-token', f'--account={local_dev_account}'],
         capture_output=True, text=True, timeout=10
     )
     if result.returncode != 0:
