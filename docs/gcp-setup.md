@@ -30,12 +30,15 @@
 
 This is the **single service account** used everywhere for consistency.
 
-**Roles**:
+**Roles (project-level)**:
 - `roles/artifactregistry.admin` - Push Docker images
 - `roles/run.admin` - Deploy to Cloud Run
 - `roles/iam.serviceAccountUser` - Act as other SAs
 - `roles/datastore.user` - Firestore access
 - `roles/storage.admin` - GCS access
+
+**Roles (on itself for URL signing)**:
+- `roles/iam.serviceAccountTokenCreator` - Sign GCS URLs on Cloud Run
 
 **Used by**:
 - Cloud Run services (production)
