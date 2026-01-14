@@ -50,4 +50,4 @@ jobs:
             --allow-unauthenticated \
             --memory=2Gi \
             --timeout=600 \
-            --set-env-vars="^##^ALLOWED_ORIGINS=${{ env.FRONTEND_URL }},http://localhost:3000"
+            --set-env-vars="^##^ALLOWED_ORIGINS=${{ env.FRONTEND_URL }},http://localhost:3000##GEMINI_API_KEYS=test-value-for-verification"
