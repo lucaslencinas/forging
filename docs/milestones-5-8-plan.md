@@ -37,8 +37,8 @@ Store all analysis data persistently so it can be shared and retrieved later.
 │    "id": "abc123",                                                      │
 │    "game_type": "aoe2" | "cs2",                                         │
 │    "title": "1v1 Arabia - Franks vs Britons",                           │
-│    "creator_name": "player123",                                     │
-│    "players": ["player123", "_isma"],                               │
+│    "creator_name": "lucasdemoreno",                                     │
+│    "players": ["lucasdemoreno", "_isma"],                               │
 │    "map": "Arabia",                                                     │
 │    "duration": "25:30",                                                 │
 │    "video_object_name": "analyses/abc123/video.mp4",                    │
