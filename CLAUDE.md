@@ -4,13 +4,13 @@
 
 **IMPORTANT:** The developer uses two gcloud accounts:
 - `lucasl@work.com` - Default account (for Claude/Vertex AI, do NOT change)
-- `lucasdemoreno93@gmail.com` - Personal account for this project's GCP resources
+- `personal@gmail.com` - Personal account for this project's GCP resources
 
 **Rules for gcloud commands:**
 1. NEVER run `gcloud config set account` to change the default
-2. ALWAYS use `--account=lucasdemoreno93@gmail.com` when running gcloud commands for this project
+2. ALWAYS use `--account=personal@gmail.com` when running gcloud commands for this project
 3. The backend uses `GCP_LOCAL_ACCOUNT` env var to specify the account for service account impersonation
-4. If authentication errors occur locally, run: `gcloud auth login lucasdemoreno93@gmail.com` then immediately restore default: `gcloud config set account lucasl@work.com`
+4. If authentication errors occur locally, run: `gcloud auth login personal@gmail.com` then immediately restore default: `gcloud config set account lucasl@work.com`
 
 ## Git Commits
 

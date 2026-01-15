@@ -6,9 +6,9 @@
 |----------|-------|
 | **Project Name** | Forging Cloud |
 | **Project ID** | `project-48dfd3a0-58cd-43e5-ae7` |
-| **Organization** | `lucasdemoreno93-org` (personal) |
+| **Organization** | `personal-org` (personal) |
 | **Region** | `us-central1` |
-| **Owner** | `lucasdemoreno93@gmail.com` |
+| **Owner** | `personal@gmail.com` |
 
 ---
 
@@ -63,7 +63,7 @@ Your personal account needs permission to impersonate the service account:
 ```bash
 gcloud iam service-accounts add-iam-policy-binding \
   github-actions@project-48dfd3a0-58cd-43e5-ae7.iam.gserviceaccount.com \
-  --member="user:lucasdemoreno93@gmail.com" \
+  --member="user:personal@gmail.com" \
   --role="roles/iam.serviceAccountTokenCreator" \
   --project=project-48dfd3a0-58cd-43e5-ae7
 ```
@@ -146,7 +146,7 @@ Uses Workload Identity Federation (no service account keys).
 ### Check active account
 ```bash
 gcloud config get-value account
-# Should show: lucasdemoreno93@gmail.com
+# Should show: personal@gmail.com
 ```
 
 ### Check project
