@@ -6,6 +6,11 @@ import type { components } from "@/types/api";
 
 type AnalysisListItem = components["schemas"]["AnalysisListItem"];
 
+const gamePlaceholders: Record<string, string> = {
+  aoe2: "/game-placeholders/aoe2.svg",
+  cs2: "/game-placeholders/cs2.svg",
+};
+
 const gameIcons: Record<string, string> = {
   aoe2: "🏰",
   cs2: "🎯",
@@ -92,9 +97,26 @@ export function CommunityCarousel() {
               href={`/games/${analysis.id}`}
               className="group rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 transition-all hover:border-zinc-600 hover:bg-zinc-800"
             >
-              {/* Thumbnail placeholder */}
-              <div className="aspect-video rounded-lg bg-zinc-700/50 flex items-center justify-center text-4xl">
-                {gameIcons[analysis.game_type] || "🎮"}
+              {/* Thumbnail */}
+              <div className="aspect-video rounded-lg bg-zinc-700/50 overflow-hidden relative">
+                {analysis.thumbnail_url ? (
+                  <img
+                    src={analysis.thumbnail_url}
+                    alt={analysis.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // Fallback to placeholder on error
+                      const target = e.target as HTMLImageElement;
+                      target.src = gamePlaceholders[analysis.game_type] || gamePlaceholders.aoe2;
+                    }}
+                  />
+                ) : (
+                  <img
+                    src={gamePlaceholders[analysis.game_type] || gamePlaceholders.aoe2}
+                    alt={analysis.game_type}
+                    className="w-full h-full object-cover"
+                  />
+                )}
               </div>
 
               <div className="mt-4">

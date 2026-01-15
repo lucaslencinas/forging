@@ -1,0 +1,13 @@
+<svg width="640" height="360" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg-aoe2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="50%" style="stop-color:#16213e"/>
+      <stop offset="100%" style="stop-color:#0f3460"/>
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#bg-aoe2)"/>
+  <text x="50%" y="45%" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="32" font-weight="600" fill="#c9a227">Age of Empires II</text>
+  <text x="50%" y="58%" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="18" fill="#8b9dc3">Definitive Edition</text>
+  <text x="50%" y="80%" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="48" fill="#c9a227">🏰</text>
+</svg>

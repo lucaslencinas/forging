@@ -298,6 +298,32 @@ def delete_object(object_name: str) -> bool:
     return False
 
 
+def upload_file(local_path: str, object_name: str, content_type: str = "image/jpeg") -> str:
+    """
+    Upload a local file to GCS.
+
+    Args:
+        local_path: Path to the local file
+        object_name: The object name in GCS (e.g., "thumbnails/abc123.jpg")
+        content_type: MIME type of the file
+
+    Returns:
+        The object name in GCS
+
+    Raises:
+        ValueError: If upload fails
+    """
+    client = get_storage_client()
+    bucket = client.bucket(BUCKET_NAME)
+    blob = bucket.blob(object_name)
+
+    logger.info(f"Uploading {local_path} to gs://{BUCKET_NAME}/{object_name}")
+    blob.upload_from_filename(local_path, content_type=content_type)
+    logger.info(f"Upload complete: {object_name}")
+
+    return object_name
+
+
 def download_to_temp(object_name: str, temp_dir: Optional[str] = None) -> str:
     """
     Download a GCS object to a temporary file using a signed URL.

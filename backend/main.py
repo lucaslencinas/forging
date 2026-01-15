@@ -35,6 +35,7 @@ from services import gcs
 from services import video_analyzer
 from services import cs2_video_analyzer
 from services import firestore
+from services import thumbnail
 from services.llm.gemini import GeminiProvider
 
 list_available_models()
@@ -361,6 +362,38 @@ async def create_analysis(request: SavedAnalysisRequest) -> SavedAnalysisRespons
             else:
                 title = f"{request.game_type.upper()} Analysis"
 
+        # Generate thumbnail from video at first tip timestamp
+        thumbnail_url = None
+        video_tmp_path = None
+        thumbnail_tmp_path = None
+        try:
+            if result.tips:
+                logger.info("Generating thumbnail from video...")
+                video_tmp_path = gcs.download_to_temp(request.video_object_name)
+
+                # Convert tips to dict format for thumbnail extraction
+                tips_for_thumbnail = [{"timestamp": tip.timestamp_display} for tip in result.tips]
+                thumbnail_tmp_path = thumbnail.extract_thumbnail_from_first_tip(
+                    video_tmp_path, tips_for_thumbnail
+                )
+
+                if thumbnail_tmp_path:
+                    # Upload thumbnail to GCS
+                    thumbnail_object_name = f"thumbnails/{analysis_id}.jpg"
+                    gcs.upload_file(thumbnail_tmp_path, thumbnail_object_name, "image/jpeg")
+                    thumbnail_url = thumbnail_object_name
+                    logger.info(f"Thumbnail uploaded: {thumbnail_object_name}")
+        except Exception as e:
+            logger.warning(f"Thumbnail generation failed, using fallback: {e}")
+            # Fallback to game-specific placeholder
+            thumbnail_url = f"fallback/{request.game_type}.jpg"
+        finally:
+            # Cleanup temp files
+            if video_tmp_path and os.path.exists(video_tmp_path):
+                os.unlink(video_tmp_path)
+            if thumbnail_tmp_path and os.path.exists(thumbnail_tmp_path):
+                os.unlink(thumbnail_tmp_path)
+
         # Save to Firestore
         analysis_record = {
             "id": analysis_id,
@@ -372,7 +405,7 @@ async def create_analysis(request: SavedAnalysisRequest) -> SavedAnalysisRespons
             "duration": duration,
             "video_object_name": request.video_object_name,
             "replay_object_name": request.replay_object_name,
-            "thumbnail_url": None,  # Will be set by thumbnail generation later
+            "thumbnail_url": thumbnail_url,
             "tips": [tip.model_dump() for tip in result.tips],
             "tips_count": len(result.tips),
             "game_summary": result.game_summary.model_dump() if result.game_summary else None,
@@ -397,7 +430,7 @@ async def create_analysis(request: SavedAnalysisRequest) -> SavedAnalysisRespons
             duration=duration,
             video_object_name=request.video_object_name,
             replay_object_name=request.replay_object_name,
-            thumbnail_url=None,
+            thumbnail_url=thumbnail_url,
             tips=result.tips,
             tips_count=len(result.tips),
             game_summary=result.game_summary,
@@ -467,7 +500,19 @@ async def list_analyses(
         public_only=True,
     )
 
-    items = [AnalysisListItem(**a) for a in analyses]
+    # Generate signed URLs for thumbnails
+    items = []
+    for a in analyses:
+        thumbnail_url = a.get("thumbnail_url")
+        # If thumbnail is a GCS object (not a fallback), generate signed URL
+        if thumbnail_url and thumbnail_url.startswith("thumbnails/"):
+            try:
+                url_data = gcs.generate_download_url(thumbnail_url)
+                a["thumbnail_url"] = url_data["signed_url"]
+            except Exception as e:
+                logger.warning(f"Failed to generate thumbnail URL for {a.get('id')}: {e}")
+                a["thumbnail_url"] = None
+        items.append(AnalysisListItem(**a))
 
     return AnalysisListResponse(
         analyses=items,
