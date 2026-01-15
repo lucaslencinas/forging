@@ -203,14 +203,37 @@ export interface paths {
         put?: never;
         /**
          * Create Analysis
-         * @description Create and save a new analysis.
+         * @description Start a new analysis asynchronously.
          *
-         *     1. Runs video analysis (downloads from GCS, analyzes with Gemini)
-         *     2. Optionally parses replay if provided
-         *     3. Saves results to Firestore
-         *     4. Returns shareable URL
+         *     1. Creates a pending analysis record in Firestore
+         *     2. Starts video analysis in background (using asyncio.create_task for true async)
+         *     3. Returns immediately with analysis ID for polling
+         *
+         *     The client should redirect to /games/{id} and poll for status.
+         *
+         *     Requires both video and replay/demo file for accurate game metadata.
          */
         post: operations["create_analysis_api_analysis_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analysis/{analysis_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Analysis Status
+         * @description Get the status of an analysis (for polling).
+         */
+        get: operations["get_analysis_status_api_analysis__analysis_id__status_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -284,6 +307,11 @@ export interface components {
         AnalysisDetailResponse: {
             /** Id */
             id: string;
+            /**
+             * Status
+             * @default complete
+             */
+            status: string;
             /** Game Type */
             game_type: string;
             /** Title */
@@ -305,17 +333,30 @@ export interface components {
             replay_object_name?: string | null;
             /** Thumbnail Url */
             thumbnail_url?: string | null;
-            /** Tips */
+            /**
+             * Tips
+             * @default []
+             */
             tips: components["schemas"]["TimestampedTip"][];
-            /** Tips Count */
+            /**
+             * Tips Count
+             * @default 0
+             */
             tips_count: number;
             game_summary?: components["schemas"]["GameSummary"] | null;
             /** Model Used */
-            model_used: string;
+            model_used?: string | null;
             /** Provider */
-            provider: string;
+            provider?: string | null;
+            /** Error */
+            error?: string | null;
             /** Created At */
             created_at: string;
+            /**
+             * Audio Urls
+             * @default []
+             */
+            audio_urls: string[];
         };
         /**
          * AnalysisListItem
@@ -330,6 +371,15 @@ export interface components {
             title: string;
             /** Creator Name */
             creator_name?: string | null;
+            /**
+             * Players
+             * @default []
+             */
+            players: string[];
+            /** Map */
+            map?: string | null;
+            /** Duration */
+            duration?: string | null;
             /** Thumbnail Url */
             thumbnail_url?: string | null;
             /** Tips Count */
@@ -356,6 +406,30 @@ export interface components {
             game_type: string;
             game_summary: components["schemas"]["GameSummary"];
             analysis: components["schemas"]["Analysis"];
+        };
+        /**
+         * AnalysisStartResponse
+         * @description Response when starting an async analysis.
+         */
+        AnalysisStartResponse: {
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
+            /** Share Url */
+            share_url: string;
+        };
+        /**
+         * AnalysisStatusResponse
+         * @description Response for checking analysis status.
+         */
+        AnalysisStatusResponse: {
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
+            /** Error */
+            error?: string | null;
         };
         /** Body_analyze_aoe2_api_analyze_aoe2_post */
         Body_analyze_aoe2_api_analyze_aoe2_post: {
@@ -490,48 +564,6 @@ export interface components {
              * @default true
              */
             is_public: boolean;
-        };
-        /**
-         * SavedAnalysisResponse
-         * @description Response with saved analysis data and share URL.
-         */
-        SavedAnalysisResponse: {
-            /** Id */
-            id: string;
-            /** Share Url */
-            share_url: string;
-            /** Game Type */
-            game_type: string;
-            /** Title */
-            title: string;
-            /** Creator Name */
-            creator_name?: string | null;
-            /**
-             * Players
-             * @default []
-             */
-            players: string[];
-            /** Map */
-            map?: string | null;
-            /** Duration */
-            duration?: string | null;
-            /** Video Object Name */
-            video_object_name: string;
-            /** Replay Object Name */
-            replay_object_name?: string | null;
-            /** Thumbnail Url */
-            thumbnail_url?: string | null;
-            /** Tips */
-            tips: components["schemas"]["TimestampedTip"][];
-            /** Tips Count */
-            tips_count: number;
-            game_summary?: components["schemas"]["GameSummary"] | null;
-            /** Model Used */
-            model_used: string;
-            /** Provider */
-            provider: string;
-            /** Created At */
-            created_at: string;
         };
         /**
          * TimestampedTip
@@ -897,7 +929,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SavedAnalysisResponse"];
+                    "application/json": components["schemas"]["AnalysisStartResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_analysis_status_api_analysis__analysis_id__status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                analysis_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisStatusResponse"];
                 };
             };
             /** @description Validation Error */

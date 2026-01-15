@@ -123,11 +123,24 @@ export function CommunityCarousel() {
                 <h3 className="font-medium text-white group-hover:text-orange-400 transition-colors truncate">
                   {analysis.title}
                 </h3>
-                {analysis.creator_name && (
-                  <p className="mt-1 text-sm text-zinc-500">
-                    by {analysis.creator_name}
+
+                {/* Player names */}
+                {analysis.players && analysis.players.length > 0 && (
+                  <p className="mt-1 text-sm text-zinc-400 truncate">
+                    {analysis.players.slice(0, 2).join(" vs ")}
                   </p>
                 )}
+
+                {/* Map and duration */}
+                <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
+                  {analysis.map && (
+                    <span className="truncate max-w-[80px]">{analysis.map}</span>
+                  )}
+                  {analysis.map && analysis.duration && <span>·</span>}
+                  {analysis.duration && <span>{analysis.duration}</span>}
+                </div>
+
+                {/* Game type and tips count */}
                 <div className="mt-2 flex items-center justify-between text-xs text-zinc-500">
                   <span className="uppercase">{analysis.game_type}</span>
                   <span>{analysis.tips_count} tips</span>

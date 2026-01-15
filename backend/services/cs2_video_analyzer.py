@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 from typing import Optional
 
 from models import TimestampedTip, VideoAnalysisResponse, GameSummary, Player, PlayerUptime
@@ -159,7 +160,6 @@ def _build_cs2_video_prompt(demo_data: Optional[dict] = None) -> str:
         "",
         "Format your response as JSON:",
         "{",
-        '  "identified_rounds": "Round 9-11 (CT 5-3 to CT 7-4)",',
         '  "tips": [',
         '    {"timestamp": "0:15", "category": "aim", "tip": "Your description..."},',
         '    {"timestamp": "0:42", "category": "utility", "tip": "Your description..."},',
@@ -171,6 +171,28 @@ def _build_cs2_video_prompt(demo_data: Optional[dict] = None) -> str:
     ])
 
     return "\n".join(prompt_parts)
+
+
+def _get_video_duration(video_path: str) -> int:
+    """Get video duration in seconds using ffprobe."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                video_path
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if result.returncode == 0:
+            duration = float(result.stdout.strip())
+            return int(duration)
+    except Exception as e:
+        logger.warning(f"Failed to get video duration: {e}")
+    return 0
 
 
 def _parse_timestamp(ts: str) -> int:
@@ -208,22 +230,37 @@ def _parse_tips_from_response(content: str) -> list[TimestampedTip]:
     return tips
 
 
-def _build_cs2_game_summary(demo_data: Optional[dict]) -> Optional[GameSummary]:
-    """Build GameSummary from CS2 demo data if available."""
+def _build_cs2_game_summary(demo_data: Optional[dict] = None) -> Optional[GameSummary]:
+    """Build GameSummary from CS2 demo data."""
     if not demo_data:
         return None
 
     summary = demo_data.get("summary", {})
+    map_name = summary.get("map", "Unknown")
+    rounds = summary.get("rounds_played", 0)
+    duration = f"{rounds} rounds" if rounds else ""
 
-    # CS2 doesn't have the same player structure as AoE2
-    # Create a minimal summary
+    # Build players list from demo data
+    players_data = summary.get("players", [])
+    players = []
+    for p in players_data:
+        players.append(Player(
+            name=p.get("name", "Unknown"),
+            civilization="",  # CS2 doesn't have civilizations
+            color="",
+            winner=False,
+            rating=0,
+            eapm=0,
+            uptime=PlayerUptime()
+        ))
+
     return GameSummary(
-        map=summary.get("map", "Unknown"),
-        map_size="",  # Not applicable for CS2
-        duration=f"{summary.get('rounds_played', 0)} rounds",
+        map=map_name,
+        map_size="Competitive",  # CS2 is typically competitive
+        duration=duration,
         game_version="CS2",
         rated=False,
-        players=[]  # Would need to parse player data from kills/damages
+        players=players
     )
 
 
@@ -238,7 +275,7 @@ async def analyze_cs2_video(
 
     Args:
         video_object_name: GCS object name for the video (already uploaded)
-        demo_data: Optional parsed demo data for richer context
+        demo_data: Parsed demo data (required for game metadata)
         duration_seconds: Video duration in seconds (for response)
         model: Optional model name to use for analysis
 
@@ -258,7 +295,7 @@ async def analyze_cs2_video(
         logger.info("Uploading video to Gemini File API...")
         gemini_file_name = gemini.upload_video(temp_video_path)
 
-        # Step 3: Build prompt with optional demo data
+        # Step 3: Build prompt with demo data
         prompt = _build_cs2_video_prompt(demo_data)
 
         # Step 4: Analyze with Gemini
@@ -267,10 +304,22 @@ async def analyze_cs2_video(
             file_name=gemini_file_name,
             prompt=prompt,
             system_prompt=CS2_VIDEO_SYSTEM_PROMPT,
-            model=model
+            model=model,
+            video_path=temp_video_path  # Allow re-upload on API key rotation
         )
 
+        # Track the actual file name (may change if re-uploaded on key rotation)
+        actual_file_name = result.file_name if result.file_name else gemini_file_name
+
         if not result.success:
+            # Cleanup before returning
+            if temp_video_path and os.path.exists(temp_video_path):
+                try:
+                    os.remove(temp_video_path)
+                except Exception:
+                    pass
+            if actual_file_name:
+                gemini.delete_video(actual_file_name)
             return VideoAnalysisResponse(
                 video_object_name=video_object_name,
                 duration_seconds=duration_seconds,
@@ -285,6 +334,16 @@ async def analyze_cs2_video(
         tips = _parse_tips_from_response(result.content)
         logger.info(f"Parsed {len(tips)} coaching tips from response")
 
+        # Cleanup
+        if temp_video_path and os.path.exists(temp_video_path):
+            try:
+                os.remove(temp_video_path)
+                logger.info(f"Cleaned up temp file: {temp_video_path}")
+            except Exception as e:
+                logger.warning(f"Failed to cleanup temp file: {e}")
+        if actual_file_name:
+            gemini.delete_video(actual_file_name)
+
         return VideoAnalysisResponse(
             video_object_name=video_object_name,
             duration_seconds=duration_seconds,
@@ -296,6 +355,14 @@ async def analyze_cs2_video(
 
     except Exception as e:
         logger.error(f"CS2 video analysis failed: {e}")
+        # Cleanup on exception
+        if temp_video_path and os.path.exists(temp_video_path):
+            try:
+                os.remove(temp_video_path)
+            except Exception:
+                pass
+        if gemini_file_name:
+            gemini.delete_video(gemini_file_name)
         return VideoAnalysisResponse(
             video_object_name=video_object_name,
             duration_seconds=duration_seconds,
@@ -305,16 +372,3 @@ async def analyze_cs2_video(
             provider="gemini",
             error=str(e)
         )
-
-    finally:
-        # Cleanup: Delete temp file
-        if temp_video_path and os.path.exists(temp_video_path):
-            try:
-                os.remove(temp_video_path)
-                logger.info(f"Cleaned up temp file: {temp_video_path}")
-            except Exception as e:
-                logger.warning(f"Failed to cleanup temp file: {e}")
-
-        # Cleanup: Delete Gemini file (optional, they auto-delete after 48h)
-        if gemini_file_name:
-            gemini.delete_video(gemini_file_name)

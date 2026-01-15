@@ -11,13 +11,15 @@ demoparser2>=0.40.0
 awpy>=2.0.0
 
 # LLM providers (at least one required)
-google-generativeai==0.8.0  # Gemini
+google-generativeai==0.8.0  # Gemini (legacy SDK for video analysis)
+google-genai>=1.0.0         # Gemini (new SDK for TTS)
 anthropic>=0.40.0           # Claude (optional)
 openai>=1.50.0              # OpenAI (optional)
 
 # Google Cloud
 google-cloud-storage>=2.14.0
 google-cloud-firestore>=2.14.0
+google-cloud-texttospeech>=2.14.0
 
 # Utilities
 pydantic==2.5.3

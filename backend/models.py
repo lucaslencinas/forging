@@ -111,6 +111,10 @@ class VideoAnalysisResponse(BaseModel):
     error: str | None = None
 
 
+# Analysis status enum
+AnalysisStatus = str  # "pending" | "processing" | "complete" | "error"
+
+
 # Saved analysis models (for shareable links)
 class SavedAnalysisRequest(BaseModel):
     """Request to create and save an analysis."""
@@ -121,6 +125,20 @@ class SavedAnalysisRequest(BaseModel):
     title: str | None = None
     creator_name: str | None = None
     is_public: bool = True
+
+
+class AnalysisStartResponse(BaseModel):
+    """Response when starting an async analysis."""
+    id: str
+    status: str  # "processing"
+    share_url: str
+
+
+class AnalysisStatusResponse(BaseModel):
+    """Response for checking analysis status."""
+    id: str
+    status: str  # "pending" | "processing" | "complete" | "error"
+    error: str | None = None
 
 
 class SavedAnalysisResponse(BaseModel):
@@ -152,6 +170,9 @@ class AnalysisListItem(BaseModel):
     game_type: str
     title: str
     creator_name: str | None = None
+    players: list[str] = []
+    map: str | None = None
+    duration: str | None = None
     thumbnail_url: str | None = None
     tips_count: int
     created_at: str
@@ -168,6 +189,7 @@ class AnalysisDetailResponse(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
     id: str
+    status: str = "complete"  # "pending" | "processing" | "complete" | "error"
     game_type: str
     title: str
     creator_name: str | None = None
@@ -177,9 +199,11 @@ class AnalysisDetailResponse(BaseModel):
     video_signed_url: str
     replay_object_name: str | None = None
     thumbnail_url: str | None = None
-    tips: list[TimestampedTip]
-    tips_count: int
+    tips: list[TimestampedTip] = []
+    tips_count: int = 0
     game_summary: GameSummary | None = None
-    model_used: str
-    provider: str
+    model_used: str | None = None
+    provider: str | None = None
+    error: str | None = None
     created_at: str
+    audio_urls: list[str] = []  # Signed URLs for tip audio files (TTS)

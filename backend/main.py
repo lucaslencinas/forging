@@ -1,6 +1,7 @@
 """
 Forging API - AI-powered game analysis for esports improvement
 """
+import asyncio
 import logging
 import os
 import tempfile
@@ -27,6 +28,7 @@ from models import (
     VideoAnalysisResponse, ReplayUploadRequest, ReplayUploadResponse,
     SavedAnalysisRequest, SavedAnalysisResponse, AnalysisListItem,
     AnalysisListResponse, AnalysisDetailResponse, TimestampedTip,
+    AnalysisStartResponse, AnalysisStatusResponse,
 )
 from services.aoe2_parser import parse_aoe2_replay
 from services.cs2_parser import parse_cs2_demo
@@ -291,55 +293,52 @@ async def get_replay_upload_url(request: ReplayUploadRequest) -> ReplayUploadRes
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# Saved analysis endpoints
-@app.post("/api/analysis", response_model=SavedAnalysisResponse)
-async def create_analysis(request: SavedAnalysisRequest) -> SavedAnalysisResponse:
+# Background task to run the actual analysis
+async def run_analysis_background(analysis_id: str, request_data: dict):
     """
-    Create and save a new analysis.
+    Run analysis in the background and update Firestore when complete.
 
-    1. Runs video analysis (downloads from GCS, analyzes with Gemini)
-    2. Optionally parses replay if provided
-    3. Saves results to Firestore
-    4. Returns shareable URL
+    This runs after the initial response is sent to the client.
     """
-    # Generate analysis ID
-    analysis_id = str(uuid.uuid4())[:8]
-
-    # Parse replay if provided
-    replay_data = None
-    replay_tmp_path = None
-
-    if request.replay_object_name:
-        try:
-            # Download replay from GCS
-            replay_tmp_path = gcs.download_to_temp(request.replay_object_name)
-
-            # Parse based on game type
-            if request.game_type == "aoe2":
-                replay_data = parse_aoe2_replay(replay_tmp_path)
-            elif request.game_type == "cs2":
-                replay_data = parse_cs2_demo(replay_tmp_path)
-        except Exception as e:
-            logger.warning(f"Failed to parse replay: {e}")
-        finally:
-            if replay_tmp_path and os.path.exists(replay_tmp_path):
-                os.unlink(replay_tmp_path)
-
     try:
+        logger.info(f"Starting background analysis for {analysis_id}")
+
+        # Parse replay if provided
+        replay_data = None
+        replay_tmp_path = None
+        game_type = request_data["game_type"]
+        video_object_name = request_data["video_object_name"]
+        replay_object_name = request_data.get("replay_object_name")
+        model = request_data.get("model")
+
+        if replay_object_name:
+            try:
+                replay_tmp_path = gcs.download_to_temp(replay_object_name)
+                if game_type == "aoe2":
+                    replay_data = parse_aoe2_replay(replay_tmp_path)
+                elif game_type == "cs2":
+                    replay_data = parse_cs2_demo(replay_tmp_path)
+            except Exception as e:
+                logger.warning(f"Failed to parse replay: {e}")
+            finally:
+                if replay_tmp_path and os.path.exists(replay_tmp_path):
+                    os.unlink(replay_tmp_path)
+
         # Run video analysis
-        if request.game_type == "cs2":
+        if game_type == "cs2":
             result = await cs2_video_analyzer.analyze_cs2_video(
-                video_object_name=request.video_object_name,
+                video_object_name=video_object_name,
                 demo_data=replay_data,
                 duration_seconds=0,
-                model=request.model,
+                model=model,
             )
         else:
+            # Default to AoE2
             result = await video_analyzer.analyze_video(
-                video_object_name=request.video_object_name,
+                video_object_name=video_object_name,
                 replay_data=replay_data,
                 duration_seconds=0,
-                model=request.model,
+                model=model,
             )
 
         # Extract player names and game info from replay data
@@ -353,14 +352,14 @@ async def create_analysis(request: SavedAnalysisRequest) -> SavedAnalysisRespons
             duration = summary.get("duration")
 
         # Generate title if not provided
-        title = request.title
+        title = request_data.get("title")
         if not title:
             if players:
-                title = f"{request.game_type.upper()}: {' vs '.join(players[:2])}"
+                title = f"{game_type.upper()}: {' vs '.join(players[:2])}"
                 if map_name:
                     title += f" on {map_name}"
             else:
-                title = f"{request.game_type.upper()} Analysis"
+                title = f"{game_type.upper()} Analysis"
 
         # Generate thumbnail from video at first tip timestamp
         thumbnail_url = None
@@ -369,79 +368,153 @@ async def create_analysis(request: SavedAnalysisRequest) -> SavedAnalysisRespons
         try:
             if result.tips:
                 logger.info("Generating thumbnail from video...")
-                video_tmp_path = gcs.download_to_temp(request.video_object_name)
-
-                # Convert tips to dict format for thumbnail extraction
+                video_tmp_path = gcs.download_to_temp(video_object_name)
                 tips_for_thumbnail = [{"timestamp": tip.timestamp_display} for tip in result.tips]
                 thumbnail_tmp_path = thumbnail.extract_thumbnail_from_first_tip(
                     video_tmp_path, tips_for_thumbnail
                 )
-
                 if thumbnail_tmp_path:
-                    # Upload thumbnail to GCS
                     thumbnail_object_name = f"thumbnails/{analysis_id}.jpg"
                     gcs.upload_file(thumbnail_tmp_path, thumbnail_object_name, "image/jpeg")
                     thumbnail_url = thumbnail_object_name
                     logger.info(f"Thumbnail uploaded: {thumbnail_object_name}")
         except Exception as e:
             logger.warning(f"Thumbnail generation failed, using fallback: {e}")
-            # Fallback to game-specific placeholder
-            thumbnail_url = f"fallback/{request.game_type}.jpg"
+            thumbnail_url = f"fallback/{game_type}.jpg"
         finally:
-            # Cleanup temp files
             if video_tmp_path and os.path.exists(video_tmp_path):
                 os.unlink(video_tmp_path)
             if thumbnail_tmp_path and os.path.exists(thumbnail_tmp_path):
                 os.unlink(thumbnail_tmp_path)
 
-        # Save to Firestore
-        analysis_record = {
-            "id": analysis_id,
-            "game_type": request.game_type,
+        # Generate TTS audio for tips
+        audio_object_names = []
+        if result.tips:
+            try:
+                from services.tts import generate_tips_audio
+                logger.info(f"Generating TTS audio for {len(result.tips)} tips...")
+                audio_object_names = generate_tips_audio(
+                    [{"tip": tip.tip} for tip in result.tips],
+                    analysis_id
+                )
+                logger.info(f"Generated {len(audio_object_names)} audio files")
+            except Exception as e:
+                logger.warning(f"TTS generation failed (continuing without audio): {e}")
+                # Continue without audio - not critical
+
+        # Update Firestore with complete analysis
+        updates = {
+            "status": "complete",
             "title": title,
-            "creator_name": request.creator_name,
             "players": players,
             "map": map_name,
             "duration": duration,
-            "video_object_name": request.video_object_name,
-            "replay_object_name": request.replay_object_name,
             "thumbnail_url": thumbnail_url,
             "tips": [tip.model_dump() for tip in result.tips],
             "tips_count": len(result.tips),
             "game_summary": result.game_summary.model_dump() if result.game_summary else None,
             "model_used": result.model_used,
             "provider": result.provider,
-            "is_public": request.is_public,
+            "audio_object_names": audio_object_names,
         }
-
-        await firestore.save_analysis(analysis_record)
-
-        # Build share URL (will be frontend URL in production)
-        share_url = f"/games/{analysis_id}"
-
-        return SavedAnalysisResponse(
-            id=analysis_id,
-            share_url=share_url,
-            game_type=request.game_type,
-            title=title,
-            creator_name=request.creator_name,
-            players=players,
-            map=map_name,
-            duration=duration,
-            video_object_name=request.video_object_name,
-            replay_object_name=request.replay_object_name,
-            thumbnail_url=thumbnail_url,
-            tips=result.tips,
-            tips_count=len(result.tips),
-            game_summary=result.game_summary,
-            model_used=result.model_used,
-            provider=result.provider,
-            created_at=analysis_record["created_at"].isoformat(),
-        )
+        await firestore.update_analysis(analysis_id, updates)
+        logger.info(f"Background analysis complete for {analysis_id}")
 
     except Exception as e:
-        logger.exception(f"Failed to create analysis: {e}")
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        logger.exception(f"Background analysis failed for {analysis_id}: {e}")
+        # Update status to error
+        await firestore.update_analysis(analysis_id, {
+            "status": "error",
+            "error": str(e),
+        })
+
+
+# Saved analysis endpoints
+@app.post("/api/analysis", response_model=AnalysisStartResponse)
+async def create_analysis(
+    request: SavedAnalysisRequest,
+) -> AnalysisStartResponse:
+    """
+    Start a new analysis asynchronously.
+
+    1. Creates a pending analysis record in Firestore
+    2. Starts video analysis in background (using asyncio.create_task for true async)
+    3. Returns immediately with analysis ID for polling
+
+    The client should redirect to /games/{id} and poll for status.
+
+    Requires both video and replay/demo file for accurate game metadata.
+    """
+    # Validate that replay file is provided
+    if not request.replay_object_name:
+        replay_type = ".aoe2record" if request.game_type == "aoe2" else ".dem"
+        raise HTTPException(
+            status_code=400,
+            detail=f"Replay file is required for {request.game_type.upper()} analysis. Please upload a {replay_type} file."
+        )
+
+    # Generate analysis ID
+    analysis_id = str(uuid.uuid4())[:8]
+
+    # Create initial record with "processing" status
+    analysis_record = {
+        "id": analysis_id,
+        "status": "processing",
+        "game_type": request.game_type,
+        "title": request.title or f"{request.game_type.upper()} Analysis",
+        "creator_name": request.creator_name,
+        "video_object_name": request.video_object_name,
+        "replay_object_name": request.replay_object_name,
+        "is_public": request.is_public,
+        # Placeholders for data that will be filled by background task
+        "players": [],
+        "map": None,
+        "duration": None,
+        "thumbnail_url": None,
+        "tips": [],
+        "tips_count": 0,
+        "game_summary": None,
+        "model_used": None,
+        "provider": None,
+    }
+
+    await firestore.save_analysis(analysis_record)
+    logger.info(f"Created analysis {analysis_id} with status=processing")
+
+    # Start background task using asyncio.create_task for TRUE async execution
+    # This returns immediately without waiting for the task to complete
+    request_data = {
+        "game_type": request.game_type,
+        "video_object_name": request.video_object_name,
+        "replay_object_name": request.replay_object_name,
+        "model": request.model,
+        "title": request.title,
+        "creator_name": request.creator_name,
+    }
+    asyncio.create_task(run_analysis_background(analysis_id, request_data))
+
+    # Return immediately
+    share_url = f"/games/{analysis_id}"
+    return AnalysisStartResponse(
+        id=analysis_id,
+        status="processing",
+        share_url=share_url,
+    )
+
+
+@app.get("/api/analysis/{analysis_id}/status", response_model=AnalysisStatusResponse)
+async def get_analysis_status(analysis_id: str) -> AnalysisStatusResponse:
+    """Get the status of an analysis (for polling)."""
+    record = await firestore.get_analysis(analysis_id)
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    return AnalysisStatusResponse(
+        id=analysis_id,
+        status=record.get("status", "complete"),  # Default to complete for old records
+        error=record.get("error"),
+    )
 
 
 @app.get("/api/analysis/{analysis_id}", response_model=AnalysisDetailResponse)
@@ -460,6 +533,16 @@ async def get_analysis(analysis_id: str) -> AnalysisDetailResponse:
         logger.warning(f"Failed to generate video URL: {e}")
         video_signed_url = ""
 
+    # Generate signed URLs for audio files
+    audio_urls = []
+    for audio_object in record.get("audio_object_names", []):
+        try:
+            audio_url_data = gcs.generate_download_url(audio_object)
+            audio_urls.append(audio_url_data["signed_url"])
+        except Exception as e:
+            logger.warning(f"Failed to generate audio URL for {audio_object}: {e}")
+            audio_urls.append("")  # Keep placeholder for indexing
+
     # Convert tips back to TimestampedTip objects
     tips = [TimestampedTip(**tip) for tip in record.get("tips", [])]
 
@@ -470,6 +553,7 @@ async def get_analysis(analysis_id: str) -> AnalysisDetailResponse:
 
     return AnalysisDetailResponse(
         id=record["id"],
+        status=record.get("status", "complete"),  # Default to complete for old records
         game_type=record["game_type"],
         title=record["title"],
         creator_name=record.get("creator_name"),
@@ -482,9 +566,11 @@ async def get_analysis(analysis_id: str) -> AnalysisDetailResponse:
         tips=tips,
         tips_count=record.get("tips_count", len(tips)),
         game_summary=game_summary,
-        model_used=record["model_used"],
-        provider=record["provider"],
+        model_used=record.get("model_used"),
+        provider=record.get("provider"),
+        error=record.get("error"),
         created_at=record["created_at"],
+        audio_urls=audio_urls,
     )
 
 

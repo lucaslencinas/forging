@@ -59,13 +59,18 @@ def extract_thumbnail(
     try:
         # ffmpeg command to extract single frame
         # -ss before -i for fast seeking
+        # Scale to fit 16:9 (640x360) with dark padding to prevent distortion
+        scale_filter = (
+            "scale=640:360:force_original_aspect_ratio=decrease,"
+            "pad=640:360:(ow-iw)/2:(oh-ih)/2:color=0x18181b"
+        )
         cmd = [
             "ffmpeg",
             "-ss", str(timestamp_seconds),
             "-i", video_path,
             "-vframes", "1",
             "-q:v", "2",  # High quality JPEG (1-31, lower is better)
-            "-vf", "scale=640:-1",  # Resize to 640px width, maintain aspect ratio
+            "-vf", scale_filter,
             "-y",  # Overwrite output file
             output_path
         ]

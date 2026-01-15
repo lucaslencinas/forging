@@ -251,7 +251,8 @@ class GeminiProvider(LLMProvider):
         file_name: str,
         prompt: str,
         system_prompt: Optional[str] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        video_path: Optional[str] = None
     ) -> VideoAnalysisResult:
         """
         Analyze a video using Gemini's multimodal capabilities.
@@ -261,16 +262,19 @@ class GeminiProvider(LLMProvider):
             prompt: The analysis prompt
             system_prompt: Optional system instructions
             model: Optional model override (defaults to gemini-2.0-flash)
+            video_path: Optional path to video file for re-upload on key rotation
 
         Returns:
             VideoAnalysisResult with the analysis content
         """
+        current_file_name = file_name
+
         if not self.is_available():
             return VideoAnalysisResult(
                 content="",
                 model=self.model,
                 provider=self.name,
-                file_name=file_name,
+                file_name=current_file_name,
                 error="GEMINI_API_KEY not configured or all keys on cooldown"
             )
 
@@ -283,7 +287,7 @@ class GeminiProvider(LLMProvider):
                 genai = self._get_client()
 
                 # Get the file reference
-                video_file = genai.get_file(file_name)
+                video_file = genai.get_file(current_file_name)
 
                 # Create model with system prompt and low temperature for accuracy
                 generation_config = genai.GenerationConfig(
@@ -308,14 +312,28 @@ class GeminiProvider(LLMProvider):
                     content=response.text,
                     model=model_name,
                     provider=self.name,
-                    file_name=file_name
+                    file_name=current_file_name
                 )
             except Exception as e:
                 last_error = e
                 logger.error(f"Video analysis failed: {e}")
 
-                # Check if rate limit error and try rotating key
-                if self._is_rate_limit_error(e) and self._rotate_key_on_rate_limit():
+                # Check if rate limit error or file permission error
+                is_rate_limit = self._is_rate_limit_error(e)
+                is_file_permission = "do not have permission to access" in str(e).lower() or "may not exist" in str(e).lower()
+
+                if (is_rate_limit or is_file_permission) and self._rotate_key_on_rate_limit():
+                    # If we have video_path, re-upload with new key
+                    if video_path:
+                        logger.info("Re-uploading video with new API key...")
+                        try:
+                            new_file_name = self.upload_video(video_path)
+                            if new_file_name:
+                                current_file_name = new_file_name
+                                logger.info(f"Video re-uploaded as: {current_file_name}")
+                        except Exception as upload_error:
+                            logger.error(f"Failed to re-upload video: {upload_error}")
+                            break
                     logger.info("Retrying video analysis with new API key")
                     continue  # Retry with new key
                 break  # Not a rate limit error or no more keys
@@ -324,6 +342,6 @@ class GeminiProvider(LLMProvider):
             content="",
             model=model_name,
             provider=self.name,
-            file_name=file_name,
+            file_name=current_file_name,
             error=str(last_error) if last_error else "Unknown error"
         )

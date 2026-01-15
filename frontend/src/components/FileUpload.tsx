@@ -131,8 +131,8 @@ export function FileUpload({
   const isVideoUploading = videoUpload.status === "uploading" || videoUpload.status === "validating";
   const isVideoReady = videoUpload.status === "complete";
   const canSubmit = replayFile && !isLoading && !isVideoUploading;
-  // Video must be fully uploaded to GCS before we can analyze
-  const canVideoAnalyze = isVideoReady && videoUpload.objectName && !isLoading && onVideoAnalyze;
+  // Both video AND replay file are required for video analysis
+  const canVideoAnalyze = isVideoReady && videoUpload.objectName && replayFile && !isLoading && onVideoAnalyze;
 
   return (
     <div className="space-y-6">
@@ -176,15 +176,15 @@ export function FileUpload({
         )}
       </div>
 
-      {/* Video File Upload (Optional) */}
+      {/* Video File Upload */}
       <div className="rounded-xl border border-zinc-700 bg-zinc-800/30 p-6">
         <div className="flex items-center justify-between">
           <div>
             <h4 className="font-medium text-zinc-300">
-              Video Recording (Optional)
+              Video Recording
             </h4>
             <p className="text-sm text-zinc-500">
-              Add a screen recording for enhanced AI analysis (MP4, max 500MB, 15 min)
+              Add a screen recording for AI video analysis (MP4, max 500MB, 15 min)
             </p>
           </div>
           <label className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
@@ -348,15 +348,14 @@ export function FileUpload({
               <span className="flex items-center justify-center gap-2">
                 <span>🎥</span>
                 Analyze with Video
-                {replayFile && <span className="text-sm opacity-70">(+ replay data)</span>}
               </span>
             )}
           </button>
         )}
 
         {videoFile && !replayFile && onVideoAnalyze && (
-          <p className="text-center text-sm text-zinc-500">
-            Tip: Add a replay file for more accurate analysis
+          <p className="text-center text-sm text-amber-500">
+            Replay file required for video analysis
           </p>
         )}
       </div>

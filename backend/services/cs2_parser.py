@@ -29,16 +29,24 @@ def parse_with_awpy(file_path: str) -> dict[str, Any]:
     dem = Demo(file_path)
     dem.parse()
 
+    # Extract player names from player_round_totals
+    players = []
+    if hasattr(dem, 'player_round_totals') and dem.player_round_totals is not None:
+        # Get unique player names
+        player_names = dem.player_round_totals.select("name").unique().to_series().to_list()
+        players = [{"name": name} for name in player_names if name]
+
     # Extract summary
     summary = {
         "map": dem.header.get("map_name", "Unknown") if hasattr(dem, 'header') else "Unknown",
-        "rounds_played": len(dem.rounds) if hasattr(dem, 'rounds') else 0,
+        "rounds_played": len(dem.rounds) if hasattr(dem, 'rounds') and dem.rounds is not None else 0,
+        "players": players,
     }
 
-    # Extract kills data
+    # Extract kills data (dem.kills is a polars DataFrame)
     kills = []
-    if hasattr(dem, 'kills'):
-        for kill in dem.kills.to_dict('records')[:500]:  # Limit for payload size
+    if hasattr(dem, 'kills') and dem.kills is not None:
+        for kill in dem.kills.to_dicts()[:500]:  # Limit for payload size
             kills.append({
                 "tick": kill.get("tick", 0),
                 "attacker": kill.get("attacker_name", "Unknown"),
@@ -57,10 +65,10 @@ def parse_with_awpy(file_path: str) -> dict[str, Any]:
                 },
             })
 
-    # Extract damage data
+    # Extract damage data (dem.damages is a polars DataFrame)
     damages = []
-    if hasattr(dem, 'damages'):
-        for dmg in dem.damages.to_dict('records')[:1000]:
+    if hasattr(dem, 'damages') and dem.damages is not None:
+        for dmg in dem.damages.to_dicts()[:1000]:
             damages.append({
                 "tick": dmg.get("tick", 0),
                 "attacker": dmg.get("attacker_name", "Unknown"),
@@ -69,10 +77,10 @@ def parse_with_awpy(file_path: str) -> dict[str, Any]:
                 "weapon": dmg.get("weapon", "Unknown"),
             })
 
-    # Extract round data
+    # Extract round data (dem.rounds is a polars DataFrame)
     rounds = []
-    if hasattr(dem, 'rounds'):
-        for rnd in dem.rounds.to_dict('records'):
+    if hasattr(dem, 'rounds') and dem.rounds is not None:
+        for rnd in dem.rounds.to_dicts():
             rounds.append({
                 "round_num": rnd.get("round_num", 0),
                 "winner": rnd.get("winner", "Unknown"),
@@ -100,14 +108,14 @@ def parse_with_demoparser2(file_path: str) -> dict[str, Any]:
             player=["X", "Y", "Z", "last_place_name"],
             other=["headshot", "weapon", "total_rounds_played"]
         )
-        kills = kills_df.to_dict('records') if kills_df is not None else []
+        kills = kills_df.to_dict(orient='records') if kills_df is not None else []
     except Exception:
         kills = []
 
     # Parse round ends
     try:
         rounds_df = parser.parse_event("round_end")
-        rounds = rounds_df.to_dict('records') if rounds_df is not None else []
+        rounds = rounds_df.to_dict(orient='records') if rounds_df is not None else []
     except Exception:
         rounds = []
 
@@ -117,7 +125,7 @@ def parse_with_demoparser2(file_path: str) -> dict[str, Any]:
             ["X", "Y", "Z", "health", "armor_value", "team_num"],
             ticks=[i * 128 for i in range(100)]  # Sample every 128 ticks
         )
-        positions = ticks_df.to_dict('records') if ticks_df is not None else []
+        positions = ticks_df.to_dict(orient='records') if ticks_df is not None else []
     except Exception:
         positions = []
 

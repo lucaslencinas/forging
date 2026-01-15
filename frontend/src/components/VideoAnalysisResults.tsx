@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { VideoPlayer, VideoPlayerRef } from "./VideoPlayer";
 import { TimestampedTips } from "./TimestampedTips";
+import { useVoiceCoaching } from "@/hooks/useVoiceCoaching";
 import type { components } from "@/types/api";
 
 type VideoAnalysisResponse = components["schemas"]["VideoAnalysisResponse"];
@@ -12,6 +13,7 @@ type GameSummary = components["schemas"]["GameSummary"];
 interface VideoAnalysisResultsProps {
   analysis: VideoAnalysisResponse | SavedAnalysisResponse;
   videoUrl: string;
+  audioUrls?: string[];
 }
 
 // Type guard to check if the analysis has share_url (SavedAnalysisResponse)
@@ -19,10 +21,15 @@ function hasSaveUrl(analysis: VideoAnalysisResponse | SavedAnalysisResponse): an
   return 'share_url' in analysis;
 }
 
-export function VideoAnalysisResults({ analysis, videoUrl }: VideoAnalysisResultsProps) {
+export function VideoAnalysisResults({ analysis, videoUrl, audioUrls = [] }: VideoAnalysisResultsProps) {
   const videoRef = useRef<VideoPlayerRef>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+
+  // Voice coaching hook - plays tips aloud in sync with video
+  const tips = analysis.tips || [];
+  useVoiceCoaching(tips, audioUrls, currentTime, voiceEnabled);
 
   const handleSeek = (seconds: number) => {
     videoRef.current?.seek(seconds);
@@ -41,6 +48,7 @@ export function VideoAnalysisResults({ analysis, videoUrl }: VideoAnalysisResult
   };
 
   const gameSummary = analysis.game_summary;
+  const hasAudio = audioUrls.length > 0;
 
   return (
     <div className="space-y-6">
@@ -48,6 +56,20 @@ export function VideoAnalysisResults({ analysis, videoUrl }: VideoAnalysisResult
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-zinc-100">Video Analysis</h2>
         <div className="flex items-center gap-2 text-sm text-zinc-500">
+          {/* Voice coaching toggle */}
+          {hasAudio && (
+            <button
+              onClick={() => setVoiceEnabled(!voiceEnabled)}
+              className={`rounded px-3 py-1 text-sm font-medium transition-colors ${
+                voiceEnabled
+                  ? "bg-orange-500 text-white"
+                  : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+              }`}
+              title={voiceEnabled ? "Disable voice coaching" : "Enable voice coaching"}
+            >
+              {voiceEnabled ? "Voice On" : "Voice Off"}
+            </button>
+          )}
           <span className="rounded bg-zinc-800 px-2 py-1">
             {analysis.provider}
           </span>
@@ -75,33 +97,41 @@ export function VideoAnalysisResults({ analysis, videoUrl }: VideoAnalysisResult
       )}
 
       {/* Game Summary (if replay was provided) */}
-      {gameSummary && (
-        <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4">
-          <h3 className="mb-3 text-sm font-medium text-zinc-400">Game Info</h3>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <div>
-              <span className="text-xs text-zinc-500">Map</span>
-              <p className="text-sm text-zinc-200">{gameSummary.map}</p>
-            </div>
-            <div>
-              <span className="text-xs text-zinc-500">Duration</span>
-              <p className="text-sm text-zinc-200">{gameSummary.duration}</p>
-            </div>
-            <div>
-              <span className="text-xs text-zinc-500">Players</span>
-              <p className="text-sm text-zinc-200">
-                {gameSummary.players?.map((p) => p.name).join(" vs ")}
-              </p>
-            </div>
-            <div>
-              <span className="text-xs text-zinc-500">Civilizations</span>
-              <p className="text-sm text-zinc-200">
-                {gameSummary.players?.map((p) => p.civilization).join(" vs ")}
-              </p>
+      {gameSummary && (() => {
+        const hasCivilizations = gameSummary.players?.some((p) => p.civilization);
+        return (
+          <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4">
+            <h3 className="mb-3 text-sm font-medium text-zinc-400">Game Info</h3>
+            <div className={`grid grid-cols-2 gap-4 ${hasCivilizations ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+              <div>
+                <span className="text-xs text-zinc-500">Map</span>
+                <p className="text-sm text-zinc-200">{gameSummary.map}</p>
+              </div>
+              <div>
+                <span className="text-xs text-zinc-500">Duration</span>
+                <p className="text-sm text-zinc-200">{gameSummary.duration}</p>
+              </div>
+              <div>
+                <span className="text-xs text-zinc-500">Players</span>
+                <p className="text-sm text-zinc-200">
+                  {gameSummary.players?.length > 2
+                    ? `${gameSummary.players.slice(0, 2).map((p) => p.name).join(" vs ")} +${gameSummary.players.length - 2}`
+                    : gameSummary.players?.map((p) => p.name).join(" vs ")}
+                </p>
+              </div>
+              {/* Only show Civilizations for AoE2 (when players have civilization data) */}
+              {hasCivilizations && (
+                <div>
+                  <span className="text-xs text-zinc-500">Civilizations</span>
+                  <p className="text-sm text-zinc-200">
+                    {gameSummary.players?.map((p) => p.civilization).join(" vs ")}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Error message (only VideoAnalysisResponse has error field) */}
       {'error' in analysis && analysis.error && (

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { GameSelector } from "@/components/GameSelector";
 import { FileUpload } from "@/components/FileUpload";
 import { AnalysisResults } from "@/components/AnalysisResults";
@@ -10,9 +12,11 @@ import type { components } from "@/types/api";
 type GameType = "aoe2" | "cs2" | null;
 type AnalysisState = "idle" | "uploading" | "analyzing" | "video-analyzing" | "complete" | "video-complete" | "error";
 type AnalysisResponse = components["schemas"]["AnalysisResponse"];
+type AnalysisStartResponse = components["schemas"]["AnalysisStartResponse"];
 type SavedAnalysisResponse = components["schemas"]["SavedAnalysisResponse"];
 
 export default function Home() {
+  const router = useRouter();
   const [selectedGame, setSelectedGame] = useState<GameType>(null);
   const [analysisState, setAnalysisState] = useState<AnalysisState>("idle");
   const [analysisResult, setAnalysisResult] = useState<AnalysisResponse | null>(null);
@@ -64,7 +68,7 @@ export default function Home() {
   };
 
   const handleVideoAnalyze = async (videoObjectName: string, replayFile: File | null, model?: string) => {
-    if (!selectedGame) return;
+    if (!selectedGame || !replayFile) return;
 
     setAnalysisState("video-analyzing");
     setError(null);
@@ -72,63 +76,70 @@ export default function Home() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-      // Video analysis can take 5-10 minutes for large files
-      // Use AbortController for timeout (10 minutes)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 min timeout
+      // Step 1: Upload replay file to GCS
+      const uploadUrlResponse = await fetch(`${apiUrl}/api/replay/upload-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: replayFile.name,
+          content_type: "application/octet-stream",
+          file_size: replayFile.size,
+        }),
+      });
 
-      try {
-        // Use the new /api/analysis endpoint which saves to Firestore
-        const requestBody: {
-          video_object_name: string;
-          game_type: string;
-          model?: string;
-          is_public: boolean;
-        } = {
-          video_object_name: videoObjectName,
-          game_type: selectedGame,
-          is_public: true,
-        };
-
-        if (model) {
-          requestBody.model = model;
-        }
-
-        const response = await fetch(`${apiUrl}/api/analysis`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.detail || `Analysis failed: ${response.statusText}`);
-        }
-
-        const result: SavedAnalysisResponse = await response.json();
-
-        // Get download URL for the video
-        const downloadResponse = await fetch(
-          `${apiUrl}/api/video/download-url/${result.video_object_name}`
-        );
-        if (downloadResponse.ok) {
-          const downloadData = await downloadResponse.json();
-          setVideoUrl(downloadData.signed_url);
-        }
-
-        setSavedAnalysisResult(result);
-        setAnalysisState("video-complete");
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-          throw new Error('Analysis timed out. Try a shorter video or try again later.');
-        }
-        throw fetchError;
+      if (!uploadUrlResponse.ok) {
+        const error = await uploadUrlResponse.json().catch(() => ({}));
+        throw new Error(error.detail || "Failed to get replay upload URL");
       }
+
+      const { signed_url, object_name: replayObjectName } = await uploadUrlResponse.json();
+
+      // Upload replay to GCS
+      const uploadResponse = await fetch(signed_url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: replayFile,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("Failed to upload replay file");
+      }
+
+      // Step 2: Start the analysis with both video and replay
+      const requestBody: {
+        video_object_name: string;
+        replay_object_name: string;
+        game_type: string;
+        model?: string;
+        is_public: boolean;
+      } = {
+        video_object_name: videoObjectName,
+        replay_object_name: replayObjectName,
+        game_type: selectedGame,
+        is_public: true,
+      };
+
+      if (model) {
+        requestBody.model = model;
+      }
+
+      const response = await fetch(`${apiUrl}/api/analysis`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Analysis failed: ${response.statusText}`);
+      }
+
+      const result: AnalysisStartResponse = await response.json();
+
+      // Redirect immediately to the analysis page (it will show skeleton while processing)
+      router.push(`/games/${result.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
       setAnalysisState("error");
@@ -155,9 +166,9 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
       <header className="border-b border-zinc-800 px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight">
+          <Link href="/" className="text-2xl font-bold tracking-tight">
             <span className="text-orange-500">Forging</span>
-          </h1>
+          </Link>
           <p className="text-sm text-zinc-400">AI-Powered Game Coach</p>
         </div>
       </header>
