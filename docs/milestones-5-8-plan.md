@@ -386,3 +386,256 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 | `backend/Dockerfile` | Add ffmpeg |
 | `backend/services/video_analyzer.py` | Call thumbnail generation |
 | `backend/services/cs2_video_analyzer.py` | Call thumbnail generation |
+
+---
+
+# Milestone 9: YouTube-Style Video Player & Tips Panel Redesign
+
+> **Status**: Planned
+> **Priority**: Enhancement
+> **Depends on**: Milestones 5-8 (completed)
+
+## Overview
+
+Upgrade the video player with YouTube-like custom controls and redesign the tips panel to match YouTube's recommended videos sidebar style for a more professional, familiar UX.
+
+**Design choices:**
+- Tips panel: **Clean Card** - YouTube-style horizontal cards with timestamp boxes
+- Video controls: **Basic controls** - play/pause, progress bar, time, volume, fullscreen
+- No external libraries - pure React + HTML5 video API
+
+---
+
+## Part A: Custom Video Player Controls
+
+### Goal
+Replace the native HTML5 video controls with a custom YouTube-style control bar.
+
+### Control Bar Layout
+
+```
++------------------------------------------------------------------+
+| Video                                                             |
+|                                                                   |
+|                          [Play Icon]                              |
+|                                                                   |
++------------------------------------------------------------------+
+| [▶] =====[Red Progress Bar]=====  1:59 / 9:51    [🔊] [⛶]        |
++------------------------------------------------------------------+
+```
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| Play/Pause | Large center button + small control bar button |
+| Progress Bar | Red fill with gray remaining, draggable scrubber dot |
+| Time Display | Current time / Duration (e.g., "1:59 / 9:51") |
+| Volume | Speaker icon + hover slider, click to mute |
+| Fullscreen | Toggle button, uses Fullscreen API |
+| Auto-hide | Controls fade after 3s inactivity, show on mouse move |
+
+### Technical Implementation
+
+**New component: `frontend/src/components/VideoControls.tsx`**
+
+```tsx
+interface VideoControlsProps {
+  videoRef: RefObject<HTMLVideoElement>;
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  onPlayPause: () => void;
+  onSeek: (time: number) => void;
+  onVolumeChange: (volume: number) => void;
+  onFullscreen: () => void;
+}
+```
+
+**State management:**
+- `isPlaying` - derived from video.paused
+- `currentTime` / `duration` - from video events
+- `volume` (0-1) - persisted to localStorage
+- `isMuted` - toggle state
+- `showControls` - visibility with auto-hide timer
+
+**Progress bar styling:**
+```css
+/* Red fill up to current position, gray for remaining */
+background: linear-gradient(
+  to right,
+  #ff0000 0%,
+  #ff0000 ${progress}%,
+  #404040 ${progress}%,
+  #404040 100%
+);
+```
+
+### Modify: `frontend/src/components/VideoPlayer.tsx`
+
+```diff
+- <video controls ... />
++ <div className="group relative">
++   <video ... />
++   <VideoControls videoRef={videoRef} ... />
++ </div>
+```
+
+- Remove `controls` attribute from video element
+- Add mouse event handlers for control visibility
+- Pass video ref to VideoControls component
+
+---
+
+## Part B: Tips Panel Redesign (YouTube Sidebar Style)
+
+### Goal
+Transform the tips panel from full-width stacked cards to compact horizontal cards like YouTube's recommended videos sidebar.
+
+### Current vs New Design
+
+**Current:**
+```
++--------------------------------------------------+
+|  [2:15]  💰  Focus on constant villager...       |
+|              economy                         ▶   |
++--------------------------------------------------+
+```
+
+**New (YouTube-style):**
+```
++--------------------------------------------------+
+|  +------+  Economy: Build Order                  |
+|  | 💰   |  Focus on constant villager production |
+|  | 2:15 |  [economy]                             |
+|  +------+                                        |
++--------------------------------------------------+
+```
+
+### Card Structure
+
+```
+┌─────────────────────────────────────────────────┐
+│ ┌────────┐                                      │
+│ │  💰    │  Category: Tip Title (truncated)     │
+│ │  2:15  │  Full tip text that can wrap to      │
+│ └────────┘  two lines max... [category badge]   │
+└─────────────────────────────────────────────────┘
+```
+
+### Design Specifications
+
+| Element | Specification |
+|---------|---------------|
+| Card height | ~80px (compact) |
+| Timestamp box | 60px × 50px, dark background, centered icon + time |
+| Tip text | 2-line max with ellipsis truncation |
+| Category badge | Small colored pill (existing colors) |
+| Active state | Orange left border (4px) + brighter background |
+| Hover state | Subtle gray background (#27272a) |
+| Spacing | 8px gap between cards |
+
+### Modify: `frontend/src/components/TimestampedTips.tsx`
+
+Key changes:
+1. Restructure card layout to horizontal (flex-row)
+2. Create fixed-width timestamp box on left
+3. Stack category title + tip text + badge on right
+4. Add 2-line text truncation with CSS
+5. Change active indicator from ring to left border
+6. Add auto-scroll to active tip
+
+**CSS for text truncation:**
+```css
+.tip-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+```
+
+---
+
+## Part C: Layout Updates
+
+### Modify: `frontend/src/components/VideoAnalysisResults.tsx`
+
+```diff
+- <div className="grid gap-6 lg:grid-cols-2">
++ <div className="grid gap-6 lg:grid-cols-[1fr,380px]">
+```
+
+Changes:
+1. Video player takes remaining space (1fr)
+2. Tips panel has fixed 380px width (like YouTube sidebar)
+3. Add custom scrollbar styling for tips panel
+4. Implement scroll-to-active-tip behavior
+
+---
+
+## Files to Modify
+
+| File | Action | Description |
+|------|--------|-------------|
+| `frontend/src/components/VideoControls.tsx` | **CREATE** | Custom YouTube-style control bar |
+| `frontend/src/components/VideoPlayer.tsx` | Modify | Replace native controls with custom overlay |
+| `frontend/src/components/TimestampedTips.tsx` | Modify | Complete redesign with card layout |
+| `frontend/src/components/VideoAnalysisResults.tsx` | Modify | Update grid layout proportions |
+
+---
+
+## Implementation Order
+
+1. **VideoControls.tsx** - Create the control bar component with all features
+2. **VideoPlayer.tsx** - Integrate controls, remove native controls
+3. **TimestampedTips.tsx** - Redesign to YouTube card style
+4. **VideoAnalysisResults.tsx** - Update layout grid
+5. **Testing** - Verify all features work together
+
+---
+
+## Verification Plan
+
+### Video Controls
+- [ ] Play/pause button toggles correctly
+- [ ] Progress bar shows correct position
+- [ ] Clicking progress bar seeks accurately
+- [ ] Dragging scrubber works smoothly
+- [ ] Volume slider adjusts audio
+- [ ] Mute toggle works
+- [ ] Fullscreen enters/exits properly
+- [ ] Controls auto-hide after 3 seconds
+- [ ] Controls show on mouse movement
+
+### Tips Panel
+- [ ] Cards display in new compact horizontal layout
+- [ ] Timestamp box shows icon + time
+- [ ] Tip text truncates to 2 lines
+- [ ] Category badges display correctly
+- [ ] Active tip has orange left border
+- [ ] Clicking card seeks video
+- [ ] Auto-scroll to active tip works
+- [ ] Hover state applies correctly
+
+### Integration
+- [ ] Load analysis from `/games/[id]`
+- [ ] Video plays with new controls
+- [ ] Tips sync with video playback
+- [ ] Responsive on mobile (controls stack, tips below video)
+- [ ] Voice coaching still works
+
+---
+
+## Dependencies
+
+None - uses only native HTML5 video API and existing React patterns.
+
+---
+
+## Notes
+
+- No external video library needed for basic controls
+- Consider adding keyboard shortcuts in future milestone (space=play, arrows=seek)
+- Consider adding playback speed control in future milestone
+- Mobile may need tap-to-show-controls instead of hover

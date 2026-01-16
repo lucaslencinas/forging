@@ -25,7 +25,7 @@ export function VideoAnalysisResults({ analysis, videoUrl, audioUrls = [] }: Vid
   const videoRef = useRef<VideoPlayerRef>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [copied, setCopied] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true); // Voice ON by default
 
   // Voice coaching hook - plays tips aloud in sync with video
   const tips = analysis.tips || [];
@@ -56,20 +56,6 @@ export function VideoAnalysisResults({ analysis, videoUrl, audioUrls = [] }: Vid
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-zinc-100">Video Analysis</h2>
         <div className="flex items-center gap-2 text-sm text-zinc-500">
-          {/* Voice coaching toggle */}
-          {hasAudio && (
-            <button
-              onClick={() => setVoiceEnabled(!voiceEnabled)}
-              className={`rounded px-3 py-1 text-sm font-medium transition-colors ${
-                voiceEnabled
-                  ? "bg-orange-500 text-white"
-                  : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-              }`}
-              title={voiceEnabled ? "Disable voice coaching" : "Enable voice coaching"}
-            >
-              {voiceEnabled ? "Voice On" : "Voice Off"}
-            </button>
-          )}
           <span className="rounded bg-zinc-800 px-2 py-1">
             {analysis.provider}
           </span>
@@ -140,27 +126,31 @@ export function VideoAnalysisResults({ analysis, videoUrl, audioUrls = [] }: Vid
         </div>
       )}
 
-      {/* Main content: Video + Tips */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Video Player */}
-        <div className="space-y-2">
+      {/* Main content: Video + Tips - side by side layout */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Video Player - takes remaining space */}
+        <div className="flex-1 min-w-0 space-y-2">
           <VideoPlayer
             ref={videoRef}
             src={videoUrl}
             onTimeUpdate={handleTimeUpdate}
             className="aspect-video"
+            voiceEnabled={hasAudio ? voiceEnabled : undefined}
+            onVoiceToggle={hasAudio ? () => setVoiceEnabled(!voiceEnabled) : undefined}
           />
           <p className="text-center text-xs text-zinc-500">
             Click on a tip to jump to that moment in the video
           </p>
         </div>
 
-        {/* Timestamped Tips */}
-        <TimestampedTips
-          tips={analysis.tips || []}
-          currentTime={currentTime}
-          onSeek={handleSeek}
-        />
+        {/* Timestamped Tips - fixed width sidebar */}
+        <div className="w-full lg:w-[380px] lg:flex-shrink-0">
+          <TimestampedTips
+            tips={analysis.tips || []}
+            currentTime={currentTime}
+            onSeek={handleSeek}
+          />
+        </div>
       </div>
 
       {/* Summary stats - dynamically show categories present */}

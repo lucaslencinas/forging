@@ -142,14 +142,14 @@ export default function SharedGamePage() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
         <header className="border-b border-zinc-800 px-6 py-4">
-          <div className="mx-auto flex max-w-6xl items-center justify-between">
+          <div className="mx-auto flex max-w-7xl items-center justify-between">
             <Link href="/" className="text-2xl font-bold tracking-tight">
               <span className="text-orange-500">Forging</span>
             </Link>
             <p className="text-sm text-zinc-400">AI-Powered Game Coach</p>
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-6 py-12">
+        <main className="mx-auto max-w-7xl px-6 py-12">
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
               <svg
@@ -184,14 +184,14 @@ export default function SharedGamePage() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
         <header className="border-b border-zinc-800 px-6 py-4">
-          <div className="mx-auto flex max-w-6xl items-center justify-between">
+          <div className="mx-auto flex max-w-7xl items-center justify-between">
             <Link href="/" className="text-2xl font-bold tracking-tight">
               <span className="text-orange-500">Forging</span>
             </Link>
             <p className="text-sm text-zinc-400">AI-Powered Game Coach</p>
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-6 py-12">
+        <main className="mx-auto max-w-7xl px-6 py-12">
           <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-6 text-center">
             <p className="text-red-400">
               {error || analysis?.error || "Analysis failed"}
@@ -218,7 +218,7 @@ export default function SharedGamePage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
       <header className="border-b border-zinc-800 px-6 py-4">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
+        <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link href="/" className="text-2xl font-bold tracking-tight">
             <span className="text-orange-500">Forging</span>
           </Link>
@@ -226,7 +226,7 @@ export default function SharedGamePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-12">
+      <main className="mx-auto max-w-7xl px-6 py-12">
         <div className="space-y-6">
           <Link
             href="/new"
