@@ -313,8 +313,6 @@ export default function SharedGamePage() {
               {/* Convert AnalysisDetailResponse to VideoAnalysisResults format */}
               <VideoAnalysisResults
                 analysis={{
-                  video_object_name: "", // Not needed for display
-                  duration_seconds: 0,
                   tips: analysis.tips,
                   game_summary: analysis.game_summary || undefined,
                   model_used: analysis.model_used || "",

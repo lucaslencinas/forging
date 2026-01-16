@@ -7,18 +7,22 @@ import { useVoiceCoaching } from "@/hooks/useVoiceCoaching";
 import type { components } from "@/types/api";
 
 type VideoAnalysisResponse = components["schemas"]["VideoAnalysisResponse"];
-type SavedAnalysisResponse = components["schemas"]["SavedAnalysisResponse"];
 type GameSummary = components["schemas"]["GameSummary"];
 
-interface VideoAnalysisResultsProps {
-  analysis: VideoAnalysisResponse | SavedAnalysisResponse;
-  videoUrl: string;
-  audioUrls?: string[];
+// Define analysis type that can come from different sources
+interface AnalysisData {
+  tips?: components["schemas"]["TimestampedTip"][];
+  game_summary?: GameSummary | null;
+  model_used?: string;
+  provider?: string;
+  share_url?: string;
+  error?: string | null;
 }
 
-// Type guard to check if the analysis has share_url (SavedAnalysisResponse)
-function hasSaveUrl(analysis: VideoAnalysisResponse | SavedAnalysisResponse): analysis is SavedAnalysisResponse {
-  return 'share_url' in analysis;
+interface VideoAnalysisResultsProps {
+  analysis: AnalysisData;
+  videoUrl: string;
+  audioUrls?: string[];
 }
 
 export function VideoAnalysisResults({ analysis, videoUrl, audioUrls = [] }: VideoAnalysisResultsProps) {
@@ -40,7 +44,7 @@ export function VideoAnalysisResults({ analysis, videoUrl, audioUrls = [] }: Vid
   };
 
   const handleCopyShareUrl = async () => {
-    if (hasSaveUrl(analysis)) {
+    if (analysis.share_url) {
       await navigator.clipboard.writeText(analysis.share_url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -66,7 +70,7 @@ export function VideoAnalysisResults({ analysis, videoUrl, audioUrls = [] }: Vid
       </div>
 
       {/* Share URL */}
-      {hasSaveUrl(analysis) && (
+      {analysis.share_url && (
         <div className="flex items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/10 p-4">
           <div className="flex-1">
             <p className="text-sm font-medium text-green-400">Analysis saved!</p>
@@ -119,8 +123,8 @@ export function VideoAnalysisResults({ analysis, videoUrl, audioUrls = [] }: Vid
         );
       })()}
 
-      {/* Error message (only VideoAnalysisResponse has error field) */}
-      {'error' in analysis && analysis.error && (
+      {/* Error message */}
+      {analysis.error && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-400">
           <span className="font-medium">Analysis Error:</span> {analysis.error}
         </div>

@@ -13,14 +13,14 @@ type GameType = "aoe2" | "cs2" | null;
 type AnalysisState = "idle" | "uploading" | "analyzing" | "video-analyzing" | "complete" | "video-complete" | "error";
 type AnalysisResponse = components["schemas"]["AnalysisResponse"];
 type AnalysisStartResponse = components["schemas"]["AnalysisStartResponse"];
-type SavedAnalysisResponse = components["schemas"]["SavedAnalysisResponse"];
+type VideoAnalysisResponse = components["schemas"]["VideoAnalysisResponse"];
 
 export default function Home() {
   const router = useRouter();
   const [selectedGame, setSelectedGame] = useState<GameType>(null);
   const [analysisState, setAnalysisState] = useState<AnalysisState>("idle");
   const [analysisResult, setAnalysisResult] = useState<AnalysisResponse | null>(null);
-  const [savedAnalysisResult, setSavedAnalysisResult] = useState<SavedAnalysisResponse | null>(null);
+  const [savedAnalysisResult, setSavedAnalysisResult] = useState<VideoAnalysisResponse | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastReplayFile, setLastReplayFile] = useState<File | null>(null);
