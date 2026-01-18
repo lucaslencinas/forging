@@ -66,9 +66,46 @@ Example analysis:
 Identify unit types carefully - militia vs men-at-arms vs eagles look different."""
 
 
-def _build_video_analysis_prompt(replay_data: Optional[dict] = None) -> str:
+def _calculate_tip_count(duration_seconds: int) -> tuple[int, int]:
+    """
+    Calculate the recommended number of tips based on video duration.
+
+    Based on observation:
+    - 15 min AoE2 videos get ~8 tips
+    - Shorter CS2 videos (< 5 min) benefit from more tips due to fast-paced action
+    - Longer videos (30 min) should scale up proportionally
+
+    Returns:
+        Tuple of (min_tips, max_tips)
+    """
+    duration_minutes = duration_seconds / 60
+
+    if duration_minutes <= 5:
+        # Short videos (CS2 rounds): 5-8 tips for fast-paced action
+        return (5, 8)
+    elif duration_minutes <= 10:
+        # Medium videos: 6-10 tips
+        return (6, 10)
+    elif duration_minutes <= 15:
+        # Standard videos: 8-12 tips
+        return (8, 12)
+    elif duration_minutes <= 20:
+        # Longer videos: 10-15 tips
+        return (10, 15)
+    elif duration_minutes <= 30:
+        # Very long videos: 12-18 tips
+        return (12, 18)
+    else:
+        # Extra long videos (30+ min): 15-20 tips
+        return (15, 20)
+
+
+def _build_video_analysis_prompt(replay_data: Optional[dict] = None, duration_seconds: int = 0) -> str:
     """Build the prompt for video analysis, optionally including replay data."""
     prompt_parts = []
+
+    # Calculate dynamic tip count based on video duration
+    min_tips, max_tips = _calculate_tip_count(duration_seconds)
 
     # Include replay data if provided
     if replay_data:
@@ -149,7 +186,7 @@ def _build_video_analysis_prompt(replay_data: Optional[dict] = None) -> str:
 
     # Main task
     prompt_parts.extend([
-        "TASK: Watch this Age of Empires 2 gameplay video and provide 5-10 timestamped coaching tips.",
+        f"TASK: Watch this Age of Empires 2 gameplay video and provide {min_tips}-{max_tips} timestamped coaching tips.",
         "",
         "## ANALYSIS APPROACH",
         "",
@@ -335,8 +372,8 @@ async def analyze_video(
         logger.info("Uploading video to Gemini File API...")
         gemini_file_name = gemini.upload_video(temp_video_path)
 
-        # Step 3: Build prompt with replay data
-        prompt = _build_video_analysis_prompt(replay_data)
+        # Step 3: Build prompt with replay data and duration for dynamic tip count
+        prompt = _build_video_analysis_prompt(replay_data, duration_seconds)
 
         # Step 4: Analyze with Gemini
         logger.info(f"Analyzing video with Gemini (model: {model or 'default'})...")

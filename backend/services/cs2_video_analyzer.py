@@ -82,9 +82,41 @@ Use these categories for tips:
 Be specific about what you see. Don't guess - only comment on what's clearly visible."""
 
 
-def _build_cs2_video_prompt(demo_data: Optional[dict] = None) -> str:
+def _calculate_cs2_tip_count(duration_seconds: int) -> tuple[int, int]:
+    """
+    Calculate the recommended number of tips for CS2 based on video duration.
+
+    CS2 is fast-paced, so shorter videos still benefit from more tips.
+    Typical CS2 recordings are 1-5 minute round clips or longer match recordings.
+
+    Returns:
+        Tuple of (min_tips, max_tips)
+    """
+    duration_minutes = duration_seconds / 60
+
+    if duration_minutes <= 2:
+        # Very short (single round clip): 4-6 tips
+        return (4, 6)
+    elif duration_minutes <= 5:
+        # Short (1-2 rounds): 6-10 tips - fast-paced action
+        return (6, 10)
+    elif duration_minutes <= 10:
+        # Medium (2-4 rounds): 8-12 tips
+        return (8, 12)
+    elif duration_minutes <= 20:
+        # Long (half a match): 10-15 tips
+        return (10, 15)
+    else:
+        # Very long (full match): 15-20 tips
+        return (15, 20)
+
+
+def _build_cs2_video_prompt(demo_data: Optional[dict] = None, duration_seconds: int = 0) -> str:
     """Build the prompt for CS2 video analysis, optionally including demo data."""
     prompt_parts = []
+
+    # Calculate dynamic tip count based on video duration
+    min_tips, max_tips = _calculate_cs2_tip_count(duration_seconds)
 
     # Include demo data if provided
     if demo_data:
@@ -135,7 +167,7 @@ def _build_cs2_video_prompt(demo_data: Optional[dict] = None) -> str:
 
     # Main task
     prompt_parts.extend([
-        "TASK: Watch this Counter-Strike 2 gameplay video and provide 5-10 timestamped coaching tips.",
+        f"TASK: Watch this Counter-Strike 2 gameplay video and provide {min_tips}-{max_tips} timestamped coaching tips.",
         "",
         "## ANALYSIS STEPS",
         "",
@@ -295,8 +327,8 @@ async def analyze_cs2_video(
         logger.info("Uploading video to Gemini File API...")
         gemini_file_name = gemini.upload_video(temp_video_path)
 
-        # Step 3: Build prompt with demo data
-        prompt = _build_cs2_video_prompt(demo_data)
+        # Step 3: Build prompt with demo data and duration for dynamic tip count
+        prompt = _build_cs2_video_prompt(demo_data, duration_seconds)
 
         # Step 4: Analyze with Gemini
         logger.info(f"Analyzing CS2 video with Gemini (model: {model or 'default'})...")
