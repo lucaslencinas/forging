@@ -1,57 +1,46 @@
 # Forging 🔥
 
-AI-powered game analysis for esports improvement. Upload your replay files and get personalized coaching feedback powered by AI.
+AI-powered game analysis for esports improvement. Upload your replay files or gameplay videos and get personalized coaching feedback powered by Gemini AI.
 
-## Current Status
-
-### What's Working
-- ✅ AoE2 replay parsing (`.aoe2record` files)
-- ✅ CS2 demo parsing (`.dem` files)
-- ✅ LLM analysis with multi-provider support (Gemini, Claude, OpenAI)
-- ✅ 3-5 actionable coaching tips per analysis
-- ✅ Web UI for uploading and viewing results
-- ✅ CLI tool for quick testing (`python analyze.py replay.aoe2record`)
-- ✅ Video upload to GCS with progress tracking
-- ✅ **Video analysis with timestamped coaching tips** (AoE2 + CS2)
-- ✅ **Video player with clickable timestamps**
-- ✅ **Gemini 2.5/3.0 model selection** for video analysis
-- ✅ Automatic CI/CD deployment via GitHub Actions
-- ✅ **Shareable analysis links** (`/games/[id]`)
-- ✅ **Marketing landing page** with community carousel
-- ✅ **Firestore storage** for persistent analyses
-- ✅ **Multi-key Gemini API** with automatic rate limit fallback
-
-### Live Demo
+## Live Demo
 
 | Service | URL |
 |---------|-----|
 | Frontend | https://forging-frontend-nht57oxpca-uc.a.run.app |
 | Backend API | https://forging-backend-nht57oxpca-uc.a.run.app |
 
-### What's Missing / TODO
-- ⬜ Thumbnail generation for carousel
-- ⬜ User accounts and history
-- ⬜ Build order visualization
-- ⬜ Comparison with pro player benchmarks
+## Features
+
+- 📁 **Replay Analysis** - Upload replay files for instant AI analysis
+- 🎥 **Video Coaching** - Upload gameplay recordings (MP4, max 500MB, 15 min) for AI-powered feedback
+- ⏱️ **Timestamped Tips** - Clickable timestamps to jump to specific moments in your gameplay
+- 🎯 **Personalized Coaching** - 3-5 actionable tips tailored to your gameplay
+- 🔗 **Shareable Links** - Share your analysis with teammates or friends
+- 🎠 **Community Carousel** - Browse analyses from the community
 
 ## Supported Games
 
-- **Age of Empires II: Definitive Edition** - `.aoe2record` files
-- **Counter-Strike 2** - `.dem` demo files
+- **Age of Empires II: Definitive Edition** - `.aoe2record` replay files and video
+- **Counter-Strike 2** - `.dem` demo files and video
 
-## Features
+## Upcoming Games
 
-- 📁 Upload replay files for instant AI analysis
-- 🎥 Video upload with progress tracking (MP4, max 500MB, 15 min)
-- 🎬 **Video analysis with AI-powered timestamped coaching tips**
-- ⏱️ **Clickable timestamps to jump to specific moments in the video**
-- 🎮 **Support for AoE2 and CS2 video analysis**
-- 🤖 Multi-provider LLM support (Gemini, Claude, OpenAI) with automatic fallback
-- 🎯 Game-specific coaching feedback (3-5 actionable tips)
-- 📊 Build order analysis, timing comparisons, and improvement suggestions
-- ⚡ Fast parsing with battle-tested libraries (mgz, demoparser2)
-- 🖥️ CLI tool for testing and automation
-- 🚀 Auto-deploy to Cloud Run via GitHub Actions
+- 🚗 **Rocket League** - Car soccer physics analysis
+- ⚔️ **Dota 2** - MOBA strategy and team coordination
+- 🏆 **League of Legends** - Champion mastery and game sense
+- 🌌 **StarCraft II** - RTS build orders and macro management
+
+## What's Next
+
+**MVP Improvements:**
+- ⬜ Thumbnail generation for community carousel
+
+**Post-MVP:**
+- ⬜ User accounts and analysis history
+- ⬜ Build order visualization
+- ⬜ Comparison with pro player benchmarks
+- ⬜ AI chat with your replay ("Why did I lose that fight?")
+- ⬜ Skill progression tracking across multiple games
 
 ## Architecture
 
@@ -69,34 +58,44 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 │  Backend (Python FastAPI)                        Deploy: Cloud Run      │
 │  • Replay parsing (mgz, demoparser2)                                    │
 │  • Video analysis with Gemini File API                                  │
-│  • LLM integration (Gemini/Claude/OpenAI)                               │
+│  • LLM integration (Gemini primary, OpenAI fallback)                    │
 │  • GCS signed URL generation                                            │
 └─────────────────────────────────────────────────────────────────────────┘
                                    │
-              ┌────────────────────┼────────────────────┐
-              ▼                    ▼                    ▼
-┌──────────────────────┐ ┌──────────────────┐ ┌──────────────────────┐
-│  Gemini File API     │ │  LLM Provider    │ │  Google Cloud Storage│
-│  • Video upload      │ │  • Gemini 2.5/3  │ │  • Video uploads     │
-│  • Multimodal AI     │ │  • Claude        │ │  • Signed URLs       │
-│  • Timestamped tips  │ │  • OpenAI        │ │  • 24h auto-delete   │
-└──────────────────────┘ └──────────────────┘ └──────────────────────┘
+              ┌────────────────────┴────────────────────┐
+              ▼                                         ▼
+┌──────────────────────────────┐ ┌──────────────────────────────────────┐
+│  Gemini File API             │ │  Google Cloud                        │
+│  • Video upload & analysis   │ │  • Cloud Storage (video uploads)    │
+│  • Multimodal AI             │ │  • Firestore (analysis records)     │
+│  • Timestamped tips          │ │  • Cloud Run (deployment)           │
+└──────────────────────────────┘ └──────────────────────────────────────┘
 ```
 
-## Quick Start
+## Tech Stack
+
+- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS 4
+- **Backend**: Python 3.12, FastAPI, uvicorn
+- **AI**: Gemini 2.5/3.0 (primary), OpenAI (fallback)
+- **Parsing**:
+  - AoE2: [mgz](https://github.com/happyleavesaoc/aoc-mgz)
+  - CS2: [demoparser2](https://github.com/LaihoE/demoparser), [awpy](https://github.com/pnxenopoulos/awpy)
+- **Cloud**: Google Cloud Run, Cloud Storage, Firestore
+
+## Local Development
 
 ### Prerequisites
 
 - Node.js 20+
 - Python 3.11+
 - pnpm
-- At least one LLM API key (Gemini, Claude, or OpenAI)
+- Gemini API key (get one at [Google AI Studio](https://aistudio.google.com/))
 
-### Local Development
+### Setup
 
 1. **Clone the repository**
    ```bash
-   git clone git@github-personal:lucaslencinas/forging.git
+   git clone git@github.com:lucaslencinas/forging.git
    cd forging
    ```
 
@@ -107,7 +106,7 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    pip install -r requirements.txt
    cp .env.example .env
-   # Edit .env and add your API keys
+   # Edit .env and add your GEMINI_API_KEY
    ```
 
 3. **Run the backend**
@@ -129,46 +128,28 @@ AI-powered game analysis for esports improvement. Upload your replay files and g
 
 6. **Open http://localhost:3000**
 
-### CLI Usage
-
-```bash
-cd backend
-source venv/bin/activate
-
-# Parse and analyze a replay
-python analyze.py path/to/replay.aoe2record
-
-# Use a specific provider
-python analyze.py replay.aoe2record --provider claude
-
-# Parse only (no LLM call)
-python analyze.py replay.aoe2record --parse-only
-
-# List available providers
-python analyze.py --list-providers
-```
-
 ### Environment Variables
 
 #### Backend (`backend/.env`)
 ```bash
-# LLM API Keys (at least one required)
+# Gemini API (required)
 GEMINI_API_KEY=your_gemini_api_key
-ANTHROPIC_API_KEY=your_anthropic_api_key  # optional
-OPENAI_API_KEY=your_openai_api_key        # optional
 
-# Enable/disable providers
-GEMINI_ENABLED=true
-CLAUDE_ENABLED=true
-OPENAI_ENABLED=true
+# Optional: Multiple API keys for rate limit fallback (comma-separated)
+# GEMINI_API_KEYS=key1,key2,key3
+
+# Optional: OpenAI as fallback provider
+# OPENAI_API_KEY=your_openai_api_key
+# OPENAI_ENABLED=true
 
 # Server config
 ALLOWED_ORIGINS=http://localhost:3000
 LOG_LEVEL=INFO
 
-# GCS config (for video uploads)
-GCS_BUCKET_NAME=forging-uploads
-GCS_SIGNING_SERVICE_ACCOUNT=your-sa@project.iam.gserviceaccount.com  # optional, for local dev
+# GCS config (only needed for video uploads - uses demo mode without it)
+# GOOGLE_CLOUD_PROJECT=your-project-id
+# GCS_BUCKET_NAME=your-bucket-name
+# GCP_LOCAL_ACCOUNT=your-email@gmail.com
 ```
 
 #### Frontend (`frontend/.env.local`)
@@ -176,15 +157,13 @@ GCS_SIGNING_SERVICE_ACCOUNT=your-sa@project.iam.gserviceaccount.com  # optional,
 NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
 
-## Tech Stack
+### Note for Contributors
 
-- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS 4
-- **Backend**: Python 3.12, FastAPI, uvicorn
-- **AI**: Gemini, Claude, OpenAI (with automatic fallback)
-- **Parsing**:
-  - AoE2: [mgz](https://github.com/happyleavesaoc/aoc-mgz)
-  - CS2: [demoparser2](https://github.com/LaihoE/demoparser), [awpy](https://github.com/pnxenopoulos/awpy)
-- **Cloud**: Google Cloud Run, Google Cloud Storage
+The video upload feature requires GCP credentials (Cloud Storage). Without GCP setup:
+- **Replay analysis works fully** - Just needs a Gemini API key
+- **Video upload is disabled** - Requires GCS bucket access
+
+For hackathon judges: Use the [live demo](https://forging-frontend-nht57oxpca-uc.a.run.app) to test video features, or run locally for replay-only analysis.
 
 ## Project Structure
 
@@ -204,7 +183,6 @@ forging/
 ├── backend/                # Python FastAPI application
 │   ├── main.py            # API entry point
 │   ├── models.py          # Pydantic models
-│   ├── analyze.py         # CLI tool
 │   ├── services/
 │   │   ├── aoe2_parser.py     # AoE2 replay parsing
 │   │   ├── cs2_parser.py      # CS2 demo parsing
@@ -217,8 +195,7 @@ forging/
 │   │   └── llm/               # LLM provider abstraction
 │   │       ├── base.py        # Abstract provider class
 │   │       ├── gemini.py      # Gemini + File API
-│   │       ├── claude.py
-│   │       ├── openai.py
+│   │       ├── openai.py      # OpenAI (fallback)
 │   │       └── factory.py     # Provider auto-selection
 │   └── requirements.txt
 ├── .github/workflows/     # CI/CD pipelines

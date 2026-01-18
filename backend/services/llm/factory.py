@@ -19,7 +19,8 @@ PROVIDERS = {
 }
 
 # Default order for fallback
-DEFAULT_PROVIDER_ORDER = ["gemini", "claude", "openai"]
+# Gemini is primary, OpenAI is fallback for rate limits/errors
+DEFAULT_PROVIDER_ORDER = ["gemini", "openai"]
 
 
 def get_available_providers() -> list[str]:
