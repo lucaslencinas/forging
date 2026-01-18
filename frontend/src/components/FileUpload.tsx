@@ -184,7 +184,7 @@ export function FileUpload({
               Video Recording
             </h4>
             <p className="text-sm text-zinc-500">
-              Add a screen recording for AI video analysis (MP4, max 500MB, 15 min)
+              Add a screen recording for AI video analysis (MP4, max 700MB, 30 min)
             </p>
           </div>
           <label className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${

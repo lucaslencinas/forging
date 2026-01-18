@@ -3,7 +3,7 @@ const steps = [
     number: "1",
     title: "Upload your gameplay",
     description:
-      "Record your game and upload the video. We support MP4 files up to 500MB.",
+      "Record your game and upload the video. We support MP4 files up to 700MB, 30 minutes max.",
     icon: "📤",
   },
   {

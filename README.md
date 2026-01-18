@@ -12,7 +12,7 @@ AI-powered game analysis for esports improvement. Upload your replay files or ga
 ## Features
 
 - 📁 **Replay Analysis** - Upload replay files for instant AI analysis
-- 🎥 **Video Coaching** - Upload gameplay recordings (MP4, max 500MB, 15 min) for AI-powered feedback
+- 🎥 **Video Coaching** - Upload gameplay recordings (MP4, max 700MB, 30 min) for AI-powered feedback
 - ⏱️ **Timestamped Tips** - Clickable timestamps to jump to specific moments in your gameplay
 - 🎯 **Personalized Coaching** - 3-5 actionable tips tailored to your gameplay
 - 🔗 **Shareable Links** - Share your analysis with teammates or friends

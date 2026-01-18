@@ -3,8 +3,8 @@
 import { useState, useCallback } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-const MAX_FILE_SIZE_MB = 500;
-const MAX_DURATION_SECONDS = 900; // 15 minutes
+const MAX_FILE_SIZE_MB = 700;
+const MAX_DURATION_SECONDS = 1800; // 30 minutes
 
 interface VideoUploadState {
   status: "idle" | "validating" | "uploading" | "complete" | "error";
