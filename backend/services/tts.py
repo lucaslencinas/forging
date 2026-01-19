@@ -6,6 +6,7 @@ Generates audio narration for coaching tips using Gemini's native TTS model.
 import logging
 import os
 import tempfile
+import time
 from typing import Optional
 
 from google import genai
@@ -22,22 +23,35 @@ _genai_client = None
 TTS_MODEL = "gemini-2.5-flash-preview-tts"
 TTS_VOICE = "Charon"  # Informative coaching voice
 
+# Rate limiting settings
+TTS_DELAY_SECONDS = 1.0  # Delay between TTS calls to avoid rate limits
+TTS_RETRY_DELAY_SECONDS = 20.0  # Delay before retry on rate limit error
+TTS_MAX_RETRIES = 2
+
 
 def _get_api_key() -> str:
-    """Get Gemini API key, supporting both single and multiple key configs."""
-    # First try comma-separated keys (use first one for TTS)
+    """Get Gemini API key for TTS, with priority for dedicated TTS key."""
+    # Priority 1: Dedicated TTS key (for paid tier with higher rate limits)
+    tts_key = os.environ.get("GEMINI_TTS_API_KEY", "")
+    if tts_key:
+        logger.debug("Using dedicated GEMINI_TTS_API_KEY")
+        return tts_key
+
+    # Priority 2: First key from comma-separated keys
     api_keys_str = os.environ.get("GEMINI_API_KEYS", "")
     if api_keys_str:
         keys = [k.strip() for k in api_keys_str.split(",") if k.strip()]
         if keys:
+            logger.debug("Using first key from GEMINI_API_KEYS")
             return keys[0]
 
-    # Fallback to single key
+    # Priority 3: Single key fallback
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if api_key:
+        logger.debug("Using GEMINI_API_KEY")
         return api_key
 
-    raise ValueError("GEMINI_API_KEY or GEMINI_API_KEYS environment variable not set")
+    raise ValueError("No Gemini API key found. Set GEMINI_TTS_API_KEY, GEMINI_API_KEYS, or GEMINI_API_KEY")
 
 
 def _get_genai_client() -> genai.Client:
@@ -49,39 +63,59 @@ def _get_genai_client() -> genai.Client:
     return _genai_client
 
 
-def generate_tip_audio(tip_text: str) -> bytes:
+def _reset_client():
+    """Reset the cached client (useful if API key changes)."""
+    global _genai_client
+    _genai_client = None
+
+
+def generate_tip_audio(tip_text: str, retries: int = TTS_MAX_RETRIES) -> bytes:
     """
     Generate audio for a single tip using Gemini TTS.
 
     Args:
         tip_text: The coaching tip text to convert to speech
+        retries: Number of retries on rate limit errors
 
     Returns:
-        WAV audio content as bytes
+        Raw PCM audio content as bytes
     """
     client = _get_genai_client()
 
     # Add coaching context to the prompt for better delivery
     prompt = f"Read this coaching tip in an informative, helpful tone: {tip_text}"
 
-    response = client.models.generate_content(
-        model=TTS_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_modalities=["AUDIO"],
-            speech_config=types.SpeechConfig(
-                voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                        voice_name=TTS_VOICE,
-                    )
+    for attempt in range(retries + 1):
+        try:
+            response = client.models.generate_content(
+                model=TTS_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name=TTS_VOICE,
+                            )
+                        )
+                    ),
                 )
-            ),
-        )
-    )
+            )
 
-    # Extract audio data from the response
-    audio_data = response.candidates[0].content.parts[0].inline_data.data
-    return audio_data
+            # Extract audio data from the response
+            audio_data = response.candidates[0].content.parts[0].inline_data.data
+            return audio_data
+
+        except Exception as e:
+            error_str = str(e).lower()
+            is_rate_limit = "rate" in error_str or "quota" in error_str or "429" in error_str
+
+            if is_rate_limit and attempt < retries:
+                logger.warning(f"TTS rate limit hit, waiting {TTS_RETRY_DELAY_SECONDS}s before retry {attempt + 1}/{retries}")
+                time.sleep(TTS_RETRY_DELAY_SECONDS)
+                continue
+            else:
+                raise
 
 
 def _convert_wav_to_mp3(wav_data: bytes) -> bytes:
@@ -146,6 +180,11 @@ def generate_tips_audio(tips: list[dict], analysis_id: str) -> list[str]:
             if not tip_text:
                 logger.warning(f"Tip {i} has no text, skipping")
                 continue
+
+            # Rate limiting: wait between calls to avoid hitting limits
+            if i > 0:
+                logger.debug(f"Waiting {TTS_DELAY_SECONDS}s before next TTS call")
+                time.sleep(TTS_DELAY_SECONDS)
 
             # Generate audio using Gemini TTS
             wav_audio = generate_tip_audio(tip_text)
