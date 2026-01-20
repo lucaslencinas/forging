@@ -157,37 +157,6 @@ export function VideoAnalysisResults({ analysis, videoUrl, audioUrls = [] }: Vid
         </div>
       </div>
 
-      {/* Summary stats - dynamically show categories present */}
-      {analysis.tips && analysis.tips.length > 0 && (() => {
-        const categories = [...new Set(analysis.tips.map(t => t.category))];
-        const categoryStyles: Record<string, { bg: string; text: string; label: string }> = {
-          // AoE2 categories
-          economy: { bg: "bg-yellow-500/10", text: "text-yellow-400", label: "Economy" },
-          military: { bg: "bg-red-500/10", text: "text-red-400", label: "Military" },
-          strategy: { bg: "bg-blue-500/10", text: "text-blue-400", label: "Strategy" },
-          // CS2 categories
-          aim: { bg: "bg-red-500/10", text: "text-red-400", label: "Aim" },
-          utility: { bg: "bg-green-500/10", text: "text-green-400", label: "Utility" },
-          positioning: { bg: "bg-blue-500/10", text: "text-blue-400", label: "Positioning" },
-          teamwork: { bg: "bg-purple-500/10", text: "text-purple-400", label: "Teamwork" },
-        };
-        const defaultStyle = { bg: "bg-zinc-500/10", text: "text-zinc-400", label: "Other" };
-
-        return (
-          <div className={`grid gap-4 text-center ${categories.length <= 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
-            {categories.map(cat => {
-              const style = categoryStyles[cat] || defaultStyle;
-              const count = analysis.tips?.filter(t => t.category === cat).length || 0;
-              return (
-                <div key={cat} className={`rounded-xl ${style.bg} p-4`}>
-                  <div className={`text-2xl font-bold ${style.text}`}>{count}</div>
-                  <div className="text-sm text-zinc-400">{style.label} Tips</div>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })()}
     </div>
   );
 }
