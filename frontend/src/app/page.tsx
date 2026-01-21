@@ -3,6 +3,8 @@ import {
   Hero,
   SupportedGames,
   HowItWorks,
+  Features,
+  Roadmap,
   CommunityCarousel,
   Footer,
 } from "@/components/landing";
@@ -40,6 +42,8 @@ export default function LandingPage() {
         <Hero />
         <SupportedGames />
         <HowItWorks />
+        <Features />
+        <Roadmap />
         <CommunityCarousel />
       </main>
 

@@ -14,9 +14,15 @@ const games = [
     fileType: ".dem",
   },
   {
-    name: "Valorant",
+    name: "Rocket League",
     subtitle: "Coming Soon",
-    icon: "💜",
+    icon: "🚀",
+    status: "coming-soon" as const,
+  },
+  {
+    name: "Dota 2",
+    subtitle: "Coming Soon",
+    icon: "🗡️",
     status: "coming-soon" as const,
   },
   {
