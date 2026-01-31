@@ -172,4 +172,204 @@ When analyzing CS2 gameplay, use these categories:
 - **positioning**: Angles, off-angles, peeking, movement
 - **economy**: Buy decisions, saving, team economy
 - **teamwork**: Trading, communication, coordination
+
+### WEAPON COUNTERS AND MATCHUPS
+
+**Rifle vs AWP:**
+- Rifles must use utility to close distance
+- Smoke the AWP angle, flash and push
+- Jiggle peek to bait shot, then push during re-scope
+- Trade immediately if teammate gets AWP'd
+
+**SMG vs Rifle:**
+- SMGs win close range with movement accuracy
+- Rifles must hold distance and pre-aim
+- Don't push into SMG territory on anti-eco
+
+**Pistol vs Rifle:**
+- Close angles favor pistols (1-tap potential)
+- Keep distance as rifler
+- As pistol: play off-angles, force close fights
+
+**Utility vs Weapons:**
+- 1 flash can negate a full buy advantage
+- Well-placed molly can kill or force movement
+- HE grenade + teammate shot = easy trade
+
+### MAP-SPECIFIC STRATEGIES
+
+**Dust 2:**
+- T Side: Long control opens up A takes and cat lurks
+- CT Side: AWP Long is dominant; rotate through CT spawn
+- Key smokes: Xbox, Long Corner, CT cross
+- Common mistakes: Peeking Long without utility, B tunnel spam
+
+**Mirage:**
+- T Side: Mid control enables A and B splits
+- CT Side: Hold palace and apps with utility, not just bodies
+- Key smokes: Window, Jungle, CT, Stairs
+- Common mistakes: Dry peeking window, no mid presence
+
+**Inferno:**
+- T Side: Banana control is essential for B; apps for A
+- CT Side: Play retake A, contest Banana with utility
+- Key smokes: Coffins, CT, Library
+- Common mistakes: Over-committing to Banana, stacking A
+
+**Nuke:**
+- T Side: Control outside and squeeze CT positions
+- CT Side: Play verticality, rotate through heaven
+- Key smokes: Main, Red, Outside
+- Common mistakes: Ignoring secret, not using vents
+
+**Ancient:**
+- T Side: Mid control opens both sites
+- CT Side: Hold cave and mid with utility
+- Key smokes: CT, Temple, Elbow
+- Common mistakes: Not clearing cave, rotating too slow
+
+**Anubis:**
+- T Side: Connector control enables splits
+- CT Side: Canal and B main are key holds
+- Key smokes: Canal, Mid, CT
+- Common mistakes: Giving up connector for free
+
+### ROLE-SPECIFIC ADVICE
+
+**Entry Fragger:**
+- Go in first, get info even if you die
+- Pre-aim common angles
+- Use flash for yourself
+- Don't bait teammates
+- Accept trading deaths
+
+**Support Player:**
+- Flash for entry, not yourself
+- Smoke key angles before execute
+- Stay alive for retakes
+- Drop weapons to better aimers
+- Trade your entry immediately
+
+**AWPer:**
+- Don't force AWP on broken economy
+- One kill per round is fine
+- Reposition after shot
+- Fall back if utility is thrown
+- Communicate what you see
+
+**Lurker:**
+- Wait for execute before showing
+- Cut off rotations
+- Gather info silently
+- Don't get caught rotating
+- Save utility for late-round
+
+**In-Game Leader (IGL):**
+- Call strats based on info
+- Read opponent patterns
+- Manage economy for team
+- Keep morale positive
+- Adapt mid-round
+
+### SKILL-LEVEL COACHING GUIDELINES
+
+**Beginner (< Silver Elite)**
+Focus on fundamentals:
+- Crosshair at head height
+- Stop moving before shooting
+- Buy with team
+- Learn 1-2 smokes per map
+- Don't over-rotate on sound
+
+**Intermediate (Nova - MG)**
+Add game sense:
+- Economy management
+- Full utility usage
+- Trading and teamwork
+- Map control concepts
+- Reading opponent patterns
+
+**Advanced (DMG+)**
+Fine-tune execution:
+- Pixel-perfect crosshair placement
+- Pop flashes and advanced lineups
+- Mind games and fakes
+- Spray transfers
+- Time and sound manipulation
+
+### ROUND TYPE STRATEGIES
+
+**Pistol Round (Round 1 / 13):**
+- Most important round (sets economy)
+- CT: Hold angles, aim for heads
+- T: Group up, trade aggressively
+- Utility: Smoke + flash package or armor
+
+**Force Buy Round:**
+- Buy as much as possible (SMG, deagle, utility)
+- Play aggressive - you have less to lose
+- Try to get a weapon pickup for next round
+
+**Eco Round:**
+- Full save or just pistol + armor
+- Stack a site for potential upset
+- Hide for exit frags and weapon pickups
+- Don't feed kills - play time
+
+**Full Buy Round:**
+- Rifles + full utility + armor
+- Play structured defaults
+- Use all utility before dying
+- Trade kills properly
+
+**Bonus Round (after pistol win):**
+- SMGs for extra kill money
+- Play aggressive while opponents eco
+- Don't die to eco force
+
+### COMMON DECISION POINTS (Cause → Effect)
+
+**Early Round:**
+- Hearing footsteps → Gather info, don't peek dry
+- Teammate gets entry → Immediately trade or follow
+- Utility thrown at you → Reposition, don't tank damage
+
+**Mid Round:**
+- No info → Take map control, don't sit in spawn
+- Teammates dying → Rotate for retake, don't trickle in
+- Bomb spotted → Stack site or set up crossfire
+
+**Late Round:**
+- 1vX clutch → Play time, isolate 1v1s
+- Bomb planted → Use utility to delay defuse
+- Defusing → Stick half for info, full stick with smoke
+
+### POST-PLANT SITUATIONS
+
+**T Side Post-Plant:**
+- Plant for your position when possible
+- Crossfire with teammate if alive
+- Use utility to delay defuse
+- Listen for defuse sound
+- Don't peek unless necessary
+
+**CT Side Retake:**
+- Wait for teammates before pushing
+- Use utility to clear corners
+- Time the defuse - know how long you have
+- Smoke plant spot if no time for kill
+- Molly common plant spots
+
+### TIME MANAGEMENT
+
+**Round Timer (1:55):**
+- 0:40 left: Last chance to plant and have post-plant time
+- 0:35 left: Plant takes 3 seconds
+- 0:10 left: Defuse without kit impossible
+
+**Bomb Timer (40 seconds):**
+- 5 sec to half defuse (check for fake)
+- 10 sec full defuse with kit
+- 15 sec full defuse without kit
+- Can't save if <5 seconds when picked up
 """

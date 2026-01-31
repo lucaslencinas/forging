@@ -39,8 +39,66 @@ from services import cs2_video_analyzer
 from services import firestore
 from services import thumbnail
 from services.llm.gemini import GeminiProvider
+from services.agents.orchestrator import PipelineOrchestrator
+from services.agents.base import get_gemini_client, upload_video_to_gemini
 
 list_available_models()
+
+
+async def run_analysis_pipeline(
+    video_object_name: str,
+    replay_data: dict,
+) -> VideoAnalysisResponse:
+    """
+    Run the Pipeline for CS2 video analysis.
+
+    Converts ProducerOutput (VerifiedTip) to VideoAnalysisResponse (TimestampedTip).
+    """
+    # Download video from GCS
+    video_tmp_path = gcs.download_to_temp(video_object_name)
+
+    # Upload video to Gemini
+    client = get_gemini_client()
+    video_file = await upload_video_to_gemini(client, video_tmp_path)
+
+    try:
+        # Run pipeline
+        orchestrator = PipelineOrchestrator(
+            video_file=video_file,
+            replay_data=replay_data,
+            game_type="cs2",
+            knowledge_base="",
+        )
+        output = await orchestrator.analyze()
+
+        # Convert VerifiedTip → TimestampedTip
+        tips = [
+            TimestampedTip(
+                timestamp_seconds=tip.timestamp.video_seconds if tip.timestamp else 0,
+                timestamp_display=tip.timestamp.display if tip.timestamp else "0:00",
+                tip=tip.tip_text,
+                category=tip.category,
+            )
+            for tip in output.tips
+        ]
+
+        return VideoAnalysisResponse(
+            video_object_name=video_object_name,
+            duration_seconds=0,
+            tips=tips,
+            model_used="gemini-2.5-pro",
+            provider="gemini",
+        )
+    finally:
+        # Cleanup
+        try:
+            client.files.delete(name=video_file.name)
+            logger.info(f"Deleted Gemini video file: {video_file.name}")
+        except Exception as e:
+            logger.warning(f"Failed to delete Gemini video file: {e}")
+        if os.path.exists(video_tmp_path):
+            os.unlink(video_tmp_path)
+
 
 app = FastAPI(
     title="Forging API",
@@ -256,11 +314,9 @@ async def analyze_video_endpoint(
     try:
         # Route to appropriate analyzer based on game type
         if game_type == "cs2":
-            result = await cs2_video_analyzer.analyze_cs2_video(
+            result = await run_analysis_pipeline(
                 video_object_name=video_object_name,
-                demo_data=replay_data,
-                duration_seconds=0,
-                model=model,
+                replay_data=replay_data,
             )
         else:
             # Default to AoE2
@@ -326,11 +382,9 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
 
         # Run video analysis
         if game_type == "cs2":
-            result = await cs2_video_analyzer.analyze_cs2_video(
+            result = await run_analysis_pipeline(
                 video_object_name=video_object_name,
-                demo_data=replay_data,
-                duration_seconds=0,
-                model=model,
+                replay_data=replay_data,
             )
         else:
             # Default to AoE2

@@ -179,4 +179,171 @@ AOE2_KNOWLEDGE = """
 - Archer: Basic ranged unit
 - Skirmisher: Anti-archer, visible extra padding/shield
 - Crossbowman: Castle Age archer upgrade
+
+### UNIT COUNTERS (Rock-Paper-Scissors)
+
+**Infantry Counters:**
+- Militia line → countered by Archers, Hand Cannoneers, Scorpions
+- Militia line → strong vs Buildings, Siege, Eagles
+- Eagles → countered by Militia line, Hand Cannoneers
+- Eagles → strong vs Monks, Siege, Archers
+
+**Archer Counters:**
+- Archers → countered by Skirmishers, Siege Onagers, Huskarls
+- Archers → strong vs Infantry, slow units
+- Cavalry Archers → countered by Skirmishers, Camels (if caught)
+- Cavalry Archers → strong vs slow melee units
+
+**Cavalry Counters:**
+- Knights → countered by Pikemen, Camels, Monks
+- Knights → strong vs Archers, Siege, Villagers
+- Light Cavalry → countered by Pikemen, Camels
+- Light Cavalry → strong vs Monks, Siege, Archers (raiding)
+- Camels → countered by Pikemen, Archers, Monks
+- Camels → strong vs all Cavalry
+
+**Siege Counters:**
+- Mangonels → countered by Cavalry, Siege Rams
+- Mangonels → strong vs Archers, Infantry groups
+- Scorpions → countered by Cavalry, Mangonels
+- Scorpions → strong vs Infantry, Archers in lines
+- Rams → countered by Mangonels, Villagers
+- Rams → strong vs Buildings, absorb arrow fire
+
+**Monk Counters:**
+- Monks → countered by Light Cavalry, Eagles, Scouts
+- Monks → strong vs expensive single units (Knights, Elephants)
+
+### MAP-SPECIFIC STRATEGIES
+
+**Arabia (Open Map)**
+- Expect early aggression (Feudal or Dark Age)
+- Walling is essential but tricky
+- Scout rushes and M@A common
+- Need to balance eco and military early
+- Forward buildings (towers, ranges) are viable
+
+**Arena (Closed Map)**
+- Fully walled from start
+- Fast Castle is standard
+- Boom behind walls, then power spike
+- Monk + Siege pushes common
+- Castle drops effective
+- Always push deer (no scouting pressure)
+
+**Nomad (No TC Start)**
+- Find wood + shore quickly
+- Dock first for food (fishing ships)
+- Villagers vulnerable until TC built
+- Grush (Galley rush) is common water strategy
+- Scouting enemy TC location critical
+
+**Black Forest (Choke Points)**
+- Boom safely behind trees
+- Onagers cut through forests
+- Trash wars common in late game
+- Trade is essential for gold
+- Wall choke points heavily
+
+**Islands (Water Map)**
+- Dock timing critical
+- Fire Galleys in Feudal for water control
+- Fish boom for economy
+- Transport ships for land raids
+- Whoever controls water usually wins
+
+### CIVILIZATION MATCHUPS
+
+**Archer Civs vs Cavalry Civs**
+- Archer civs should wall and mass before Knights arrive
+- Add Pikemen as meat shield for Crossbows
+- Cavalry civs should pressure early before mass Crossbows
+- Knights should target production buildings
+
+**Infantry Civs vs Archer Civs**
+- Infantry struggles vs massed Archers
+- Need Siege Rams or Onagers to close distance
+- Eagle civs fare better (fast + pierce armor)
+- Towers and forward pressure can work
+
+**Cavalry Civs vs Camel Civs**
+- Avoid direct cavalry fights
+- Mix in Archers or Infantry
+- Camels cost gold too - drain their economy
+- Light Cav raids are still effective
+
+### SKILL-LEVEL COACHING GUIDELINES
+
+**Beginner (< 1000 ELO)**
+Focus on fundamentals:
+- Constant villager production (no idle TC)
+- Not getting housed
+- Basic build order execution
+- Using hotkeys
+- Don't over-complicate advice
+
+**Intermediate (1000-1400 ELO)**
+Add strategic elements:
+- Scouting and reacting to enemy
+- Unit composition choices
+- Map control and aggression timing
+- Eco balance (when to add TCs)
+- Upgrade timing
+
+**Advanced (1400+ ELO)**
+Fine-tune execution:
+- Build order precision
+- Micro during fights
+- Multi-tasking (fight + eco)
+- Mind games and adaptation
+- Late-game trade and positioning
+
+### TECH TREE GAPS (Key Missing Techs)
+
+**No Halberdier:**
+- Aztecs, Persians, Turks, Cumans, Spanish
+- Weaker vs Paladin in late game
+
+**No Arbalester:**
+- Franks, Persians, Teutons, Turks, Bulgarians
+- Must transition from Crossbows eventually
+
+**No Paladin:**
+- Most civs (only ~12 have Paladin)
+- Cavalier is still strong but not as dominant
+
+**No Siege Onager:**
+- Many civs lack this
+- Harder to counter massed Archers
+
+**No Bombard Cannon:**
+- Aztecs, Mayans, Incas, Celts, Huns, Mongols
+- Trebs required for long-range siege
+
+### UNIQUE UNIT IDENTIFICATION
+
+**Infantry UUs:**
+- Huskarl (Goths): Fast, high pierce armor, anti-Archer
+- Jaguar Warrior (Aztecs): Bonus vs other infantry
+- Berserk (Vikings): Self-healing infantry
+- Samurai (Japanese): Fast attack, bonus vs UUs
+- Woad Raider (Celts): Very fast infantry
+
+**Cavalry UUs:**
+- Cataphract (Byzantines): Anti-infantry cavalry
+- Tarkan (Huns): High pierce armor, anti-building
+- Boyar (Slavs): High melee armor
+- Leitis (Lithuanians): Ignores armor
+- Keshik (Tatars): Generates gold on hit
+
+**Archer UUs:**
+- Longbowman (Britons): Extra range
+- Chu Ko Nu (Chinese): Rapid fire
+- Plumed Archer (Mayans): Fast, cheap
+- Mangudai (Mongols): Cavalry archer, bonus vs siege
+- War Wagon (Koreans): Tanky cavalry archer
+
+**Siege UUs:**
+- Organ Gun (Portuguese): Multi-shot siege
+- Hussite Wagon (Bohemians): Tanky, protects units behind
 """

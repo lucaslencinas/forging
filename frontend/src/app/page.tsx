@@ -12,7 +12,6 @@ import {
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
-      {/* Header */}
       <header className="border-b border-zinc-800 px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <Link href="/" className="text-2xl font-bold tracking-tight">
@@ -36,8 +35,6 @@ export default function LandingPage() {
           </div>
         </div>
       </header>
-
-      {/* Main content */}
       <main>
         <Hero />
         <SupportedGames />

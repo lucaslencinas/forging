@@ -88,10 +88,32 @@ def parse_aoe2_replay(file_path: str) -> dict[str, Any]:
 
 
 def _extract_key_actions(actions: list) -> list[dict]:
-    """Extract key actions (builds, queues, research)."""
+    """Extract key actions for analysis."""
     key_actions = []
-    # Focus on actions that tell us what happened in the game
-    important_types = {"BUILD", "DE_QUEUE", "RESEARCH"}
+    # Include all action types that provide strategic insight
+    important_types = {
+        "BUILD",          # Building placement
+        "DE_QUEUE",       # Unit/tech queuing
+        "RESEARCH",       # Technology research
+        "ATTACK",         # Attack commands
+        "MOVE",           # Movement commands
+        "PATROL",         # Patrol commands
+        "FORMATION",      # Formation changes
+        "STANCE",         # Stance changes (aggressive, defensive, etc.)
+        "GARRISON",       # Garrisoning units
+        "UNGARRISON",     # Ungarrisoning units
+        "DELETE",         # Deleting units/buildings
+        "WALL",           # Wall placement
+        "GATE",           # Gate placement
+        "REPAIR",         # Repair commands
+        "TRIBUTE",        # Resource tributes
+        "FLARE",          # Map flares
+        "WAYPOINT",       # Rally points
+        "STOP",           # Stop commands
+        "GATHER",         # Gather point assignments
+        "SELL",           # Market sell
+        "BUY",            # Market buy
+    }
 
     for action in actions:
         action_type = action.get("type", "")
@@ -191,11 +213,13 @@ def format_for_gemini(game_data: dict) -> str:
     summary = game_data.get("summary", {})
     players = game_data.get("players", [])
     actions = game_data.get("actions", [])
+    player_stats = game_data.get("player_stats", {})
 
     lines = [
         f"## Age of Empires II Game",
         f"**Map:** {summary.get('map', 'Unknown')} ({summary.get('map_size', 'Unknown')})",
         f"**Duration:** {summary.get('duration', '0:00')}",
+        f"**Game Speed:** {summary.get('game_speed', 'Normal')}",
         "",
         "### Players:",
     ]
@@ -214,13 +238,44 @@ def format_for_gemini(game_data: dict) -> str:
                 if age in uptime:
                     lines.append(f"  - {age.replace('_', ' ').title()}: {_format_duration(uptime[age])}")
 
-    lines.append("")
-    lines.append("### Key Actions (first 30):")
+    # Include aggregated player stats
+    if player_stats:
+        lines.append("")
+        lines.append("### Player Statistics:")
+        for player_num, stats in player_stats.items():
+            lines.append(f"\n**Player {player_num}:**")
 
-    for action in actions[:30]:
+            # Units trained (sorted by count)
+            units = stats.get("units_trained", {})
+            if units:
+                sorted_units = sorted(units.items(), key=lambda x: x[1], reverse=True)
+                unit_strs = [f"{name}: {count}" for name, count in sorted_units]
+                lines.append(f"  Units trained: {', '.join(unit_strs)}")
+
+            # Buildings built (with timing)
+            buildings = stats.get("buildings_built", [])
+            if buildings:
+                building_strs = [f"{b['building']} ({b['time']})" for b in buildings]
+                lines.append(f"  Buildings: {', '.join(building_strs)}")
+
+            # Researches (with timing)
+            researches = stats.get("researches", [])
+            if researches:
+                research_strs = [f"{r['technology']} ({r['time']})" for r in researches]
+                lines.append(f"  Researches: {', '.join(research_strs)}")
+
+    lines.append("")
+    lines.append(f"### All Actions ({len(actions)} total):")
+
+    for action in actions:
         time_sec = _parse_timestamp(action.get("time", "0:00:00"))
         details = action.get("details", {})
-        detail_str = details.get("command", "") or details.get("name", "") or ""
+        # Extract relevant detail fields
+        detail_parts = []
+        for key in ["command", "name", "building", "unit", "technology", "target"]:
+            if key in details and details[key]:
+                detail_parts.append(str(details[key]))
+        detail_str = " ".join(detail_parts)
         lines.append(f"- [{_format_duration(time_sec)}] P{action.get('player')}: {action.get('type')} {detail_str}")
 
     return "\n".join(lines)

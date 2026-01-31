@@ -1,6 +1,7 @@
 """
 Google Gemini LLM provider with File API support for video analysis.
 """
+
 import os
 import logging
 import time
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class VideoAnalysisResult:
     """Result from video analysis."""
+
     content: str
     model: str
     provider: str
@@ -31,18 +33,18 @@ class GeminiProvider(LLMProvider):
 
     # Models to try in order of preference (all available on free AI Studio tier)
     MODELS = [
-        "gemini-2.0-flash",      # Free tier, multimodal (text, image, video, audio)
-        "gemini-1.5-flash",      # Free tier fallback, stable and widely available
-        "gemini-1.5-pro",        # Free tier fallback, higher quality
+        "gemini-2.0-flash",  # Free tier, multimodal (text, image, video, audio)
+        "gemini-1.5-flash",  # Free tier fallback, stable and widely available
+        "gemini-1.5-pro",  # Free tier fallback, higher quality
     ]
 
     # Video analysis models (configurable via env or UI)
     VIDEO_MODELS = [
-        "gemini-2.5-flash",      # Best price/performance, thinking model
-        "gemini-2.5-pro",        # Best quality, reasoning
-        "gemini-3-flash-preview",    # Newest flash model (experimental)
-        "gemini-3-pro-preview",      # Newest pro model (experimental)
-        "gemini-2.0-flash",      # Stable, fast
+        "gemini-2.5-flash",  # Best price/performance, thinking model
+        "gemini-2.5-pro",  # Best quality, reasoning
+        "gemini-3-flash-preview",  # Newest flash model (experimental)
+        "gemini-3-pro-preview",  # Newest pro model (experimental)
+        "gemini-2.0-flash",  # Stable, fast
     ]
 
     # Cooldown period for rate-limited keys (24 hours for daily quota limits)
@@ -97,7 +99,9 @@ class GeminiProvider(LLMProvider):
 
         old_index = self._current_key_index
         self._key_cooldowns[old_index] = time.time() + self.KEY_COOLDOWN_SECONDS
-        logger.warning(f"API key #{old_index + 1} rate limited, putting on 24h cooldown")
+        logger.warning(
+            f"API key #{old_index + 1} rate limited, putting on 24h cooldown"
+        )
 
         # Try to find a non-cooldown key
         new_key = self._get_current_api_key()
@@ -114,10 +118,10 @@ class GeminiProvider(LLMProvider):
         """Check if error is a rate limit error."""
         error_str = str(error).lower()
         return (
-            "429" in error_str or
-            "rate limit" in error_str or
-            "quota" in error_str or
-            "resource exhausted" in error_str
+            "429" in error_str
+            or "rate limit" in error_str
+            or "quota" in error_str
+            or "resource exhausted" in error_str
         )
 
     def _get_client(self):
@@ -128,20 +132,25 @@ class GeminiProvider(LLMProvider):
         # Reconfigure if key changed
         if self._genai is None or self._configured_key != current_key:
             import google.generativeai as genai
+
             genai.configure(api_key=current_key)
             self._genai = genai
             self._configured_key = current_key
             if len(self.api_keys) > 1:
-                logger.info(f"Configured Gemini with API key #{self._current_key_index + 1} of {len(self.api_keys)}")
+                logger.info(
+                    f"Configured Gemini with API key #{self._current_key_index + 1} of {len(self.api_keys)}"
+                )
         return self._genai
 
-    async def generate(self, prompt: str, system_prompt: Optional[str] = None) -> LLMResponse:
+    async def generate(
+        self, prompt: str, system_prompt: Optional[str] = None
+    ) -> LLMResponse:
         if not self.is_available():
             return LLMResponse(
                 content="",
                 model=self.model,
                 provider=self.name,
-                error="GEMINI_API_KEY not configured or all keys on cooldown"
+                error="GEMINI_API_KEY not configured or all keys on cooldown",
             )
 
         # Try with current key, rotate on rate limit
@@ -153,26 +162,28 @@ class GeminiProvider(LLMProvider):
                 genai = self._get_client()
 
                 # Try models in order until one works
-                models_to_try = [self.model] if self.model not in self.MODELS else self.MODELS
+                models_to_try = (
+                    [self.model] if self.model not in self.MODELS else self.MODELS
+                )
 
                 for model_name in models_to_try:
                     try:
                         model = genai.GenerativeModel(
-                            model_name=model_name,
-                            system_instruction=system_prompt
+                            model_name=model_name, system_instruction=system_prompt
                         )
                         response = model.generate_content(prompt)
                         return LLMResponse(
-                            content=response.text,
-                            model=model_name,
-                            provider=self.name
+                            content=response.text, model=model_name, provider=self.name
                         )
                     except Exception as e:
                         last_error = e
                         logger.warning(f"Gemini model {model_name} failed: {e}")
 
                         # Check if rate limit error and try rotating key
-                        if self._is_rate_limit_error(e) and self._rotate_key_on_rate_limit():
+                        if (
+                            self._is_rate_limit_error(e)
+                            and self._rotate_key_on_rate_limit()
+                        ):
                             break  # Break inner loop to retry with new key
                         continue
 
@@ -193,7 +204,7 @@ class GeminiProvider(LLMProvider):
             content="",
             model=self.model,
             provider=self.name,
-            error=f"All Gemini API keys/models failed. Last error: {last_error}"
+            error=f"All Gemini API keys/models failed. Last error: {last_error}",
         )
 
     def upload_video(self, file_path: str, mime_type: str = "video/mp4") -> str:
@@ -252,7 +263,7 @@ class GeminiProvider(LLMProvider):
         prompt: str,
         system_prompt: Optional[str] = None,
         model: Optional[str] = None,
-        video_path: Optional[str] = None
+        video_path: Optional[str] = None,
     ) -> VideoAnalysisResult:
         """
         Analyze a video using Gemini's multimodal capabilities.
@@ -275,7 +286,7 @@ class GeminiProvider(LLMProvider):
                 model=self.model,
                 provider=self.name,
                 file_name=current_file_name,
-                error="GEMINI_API_KEY not configured or all keys on cooldown"
+                error="GEMINI_API_KEY not configured or all keys on cooldown",
             )
 
         model_name = model or os.getenv("VIDEO_ANALYSIS_MODEL", "gemini-2.5-flash")
@@ -289,14 +300,11 @@ class GeminiProvider(LLMProvider):
                 # Get the file reference
                 video_file = genai.get_file(current_file_name)
 
-                # Create model with system prompt and low temperature for accuracy
-                generation_config = genai.GenerationConfig(
-                    temperature=0.2,  # Low temperature for factual, less creative responses
-                )
+                generation_config = genai.GenerationConfig()
                 gemini_model = genai.GenerativeModel(
                     model_name=model_name,
                     system_instruction=system_prompt,
-                    generation_config=generation_config
+                    generation_config=generation_config,
                 )
 
                 # Generate content with video + text prompt
@@ -304,15 +312,14 @@ class GeminiProvider(LLMProvider):
                 logger.info(f"Analyzing video with model: {model_name}")
                 request_options = {"timeout": 600}  # 10 minute timeout
                 response = gemini_model.generate_content(
-                    [video_file, prompt],
-                    request_options=request_options
+                    [video_file, prompt], request_options=request_options
                 )
 
                 return VideoAnalysisResult(
                     content=response.text,
                     model=model_name,
                     provider=self.name,
-                    file_name=current_file_name
+                    file_name=current_file_name,
                 )
             except Exception as e:
                 last_error = e
@@ -320,9 +327,14 @@ class GeminiProvider(LLMProvider):
 
                 # Check if rate limit error or file permission error
                 is_rate_limit = self._is_rate_limit_error(e)
-                is_file_permission = "do not have permission to access" in str(e).lower() or "may not exist" in str(e).lower()
+                is_file_permission = (
+                    "do not have permission to access" in str(e).lower()
+                    or "may not exist" in str(e).lower()
+                )
 
-                if (is_rate_limit or is_file_permission) and self._rotate_key_on_rate_limit():
+                if (
+                    is_rate_limit or is_file_permission
+                ) and self._rotate_key_on_rate_limit():
                     # If we have video_path, re-upload with new key
                     if video_path:
                         logger.info("Re-uploading video with new API key...")
@@ -330,7 +342,9 @@ class GeminiProvider(LLMProvider):
                             new_file_name = self.upload_video(video_path)
                             if new_file_name:
                                 current_file_name = new_file_name
-                                logger.info(f"Video re-uploaded as: {current_file_name}")
+                                logger.info(
+                                    f"Video re-uploaded as: {current_file_name}"
+                                )
                         except Exception as upload_error:
                             logger.error(f"Failed to re-upload video: {upload_error}")
                             break
@@ -343,5 +357,5 @@ class GeminiProvider(LLMProvider):
             model=model_name,
             provider=self.name,
             file_name=current_file_name,
-            error=str(last_error) if last_error else "Unknown error"
+            error=str(last_error) if last_error else "Unknown error",
         )
