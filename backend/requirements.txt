@@ -22,5 +22,5 @@ google-cloud-firestore>=2.14.0
 google-cloud-texttospeech>=2.14.0
 
 # Utilities
-pydantic==2.5.3
+pydantic>=2.9.0
 python-dotenv==1.0.0
