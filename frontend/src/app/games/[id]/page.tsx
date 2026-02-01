@@ -1,15 +1,49 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { VideoAnalysisResults } from "@/components/VideoAnalysisResults";
+import { ChatSidebar } from "@/components/ChatSidebar";
 import type { components } from "@/types/api";
 
 type AnalysisDetailResponse = components["schemas"]["AnalysisDetailResponse"];
+type AnalysisStatusResponse = components["schemas"]["AnalysisStatusResponse"];
+
+// Stage display names
+const STAGE_LABELS: Record<string, string> = {
+  parsing_demo: "Parsing demo file...",
+  uploading_video: "Uploading video to AI...",
+  detecting_rounds: "Detecting rounds in video...",
+  analyzing: "Analyzing your gameplay...",
+  validating: "Verifying tips...",
+  generating_thumbnail: "Creating thumbnail...",
+  generating_audio: "Generating voice feedback...",
+};
+
+// Stage progress percentages
+const STAGE_PROGRESS: Record<string, number> = {
+  parsing_demo: 10,
+  uploading_video: 25,
+  detecting_rounds: 35,
+  analyzing: 60,
+  validating: 80,
+  generating_thumbnail: 90,
+  generating_audio: 95,
+};
+
+// Adaptive polling intervals - poll less frequently early, more often later
+function getPollingInterval(elapsedMs: number): number {
+  if (elapsedMs < 90000) return 15000;     // First 1.5 min: every 15s (analyzing stage)
+  if (elapsedMs < 180000) return 8000;     // 1.5-3 min: every 8s (validating stage)
+  return 3000;                              // After 3 min: every 3s (should be finishing)
+}
 
 // AI Thinking placeholder for coaching tips
-function AIThinkingPlaceholder() {
+function AIThinkingPlaceholder({ stage }: { stage: string | null }) {
+  const stageLabel = stage ? STAGE_LABELS[stage] || stage : "Starting analysis...";
+  const progress = stage ? STAGE_PROGRESS[stage] || 50 : 5;
+
   return (
     <div className="space-y-4">
       <h3 className="flex items-center gap-2 text-xl font-semibold text-zinc-100">
@@ -40,10 +74,18 @@ function AIThinkingPlaceholder() {
               AI Coach is analyzing your gameplay...
             </h4>
             <p className="mt-1 text-sm text-zinc-400">
-              Watching your video and identifying key moments for improvement.
-              This usually takes 2-5 minutes.
+              {stageLabel}
             </p>
-            <div className="mt-4 flex items-center gap-2">
+
+            {/* Progress bar */}
+            <div className="mt-4 w-full bg-zinc-700 rounded-full h-2">
+              <div
+                className="bg-orange-500 h-2 rounded-full transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+
+            <div className="mt-3 flex items-center gap-2">
               <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-400" style={{ animationDelay: "0ms" }} />
               <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-400" style={{ animationDelay: "150ms" }} />
               <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-400" style={{ animationDelay: "300ms" }} />
@@ -79,10 +121,16 @@ export default function SharedGamePage() {
   const [analysis, setAnalysis] = useState<AnalysisDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [stage, setStage] = useState<string | null>(null);
+  // Stable video URL - only set once to prevent video reloading during polling
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const startTimeRef = useRef<number>(Date.now());
 
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+  // Fetch full analysis data (only when complete or for initial load)
   const fetchAnalysis = useCallback(async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
       const response = await fetch(`${apiUrl}/api/analysis/${id}`);
 
       if (!response.ok) {
@@ -95,47 +143,108 @@ export default function SharedGamePage() {
       const data: AnalysisDetailResponse = await response.json();
       setAnalysis(data);
 
-      // If still processing, continue polling
-      if (data.status === "processing") {
-        return false; // Not complete
+      // Only set video URL once to prevent video reloading during polling
+      if (data.video_signed_url) {
+        setVideoUrl((prev) => prev || data.video_signed_url);
       }
 
-      return true; // Complete or error
+      return data.status !== "processing";
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
       return true; // Stop polling on error
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, apiUrl]);
+
+  // Poll status endpoint (lightweight)
+  const pollStatus = useCallback(async (): Promise<boolean> => {
+    try {
+      console.log(`[polling] Fetching status for ${id}...`);
+      const response = await fetch(`${apiUrl}/api/analysis/${id}/status`);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          setError("Analysis not found");
+          return true;
+        }
+        console.log(`[polling] Non-OK response: ${response.status}`);
+        return false; // Continue polling on other errors
+      }
+
+      const data: AnalysisStatusResponse = await response.json();
+      console.log(`[polling] Status: ${data.status}, Stage: ${data.stage}`);
+      setStage(data.stage || null);
+
+      if (data.status === "complete") {
+        console.log(`[polling] Complete! Fetching full analysis...`);
+        // Fetch full analysis data
+        await fetchAnalysis();
+        return true;
+      }
+
+      if (data.status === "error") {
+        console.log(`[polling] Error: ${data.error}`);
+        setError(data.error || "Analysis failed");
+        return true;
+      }
+
+      console.log(`[polling] Still processing, will poll again...`);
+      return false; // Continue polling
+    } catch (err) {
+      console.log(`[polling] Network error:`, err);
+      return false; // Continue polling on network errors
+    }
+  }, [id, apiUrl, fetchAnalysis]);
 
   useEffect(() => {
     if (!id) return;
 
-    let pollInterval: NodeJS.Timeout | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
+    let cancelled = false;
 
     async function startPolling() {
+      console.log(`[polling] Starting polling for ${id}`);
+      // Initial fetch to get video URL and current state
       const isComplete = await fetchAnalysis();
+      console.log(`[polling] Initial fetch complete, isComplete: ${isComplete}`);
 
-      if (!isComplete) {
-        // Poll every 5 seconds while processing
-        pollInterval = setInterval(async () => {
-          const complete = await fetchAnalysis();
-          if (complete && pollInterval) {
-            clearInterval(pollInterval);
-          }
-        }, 5000);
+      if (isComplete || cancelled) {
+        console.log(`[polling] Stopping - isComplete: ${isComplete}, cancelled: ${cancelled}`);
+        return;
       }
+
+      // Start adaptive polling using status endpoint
+      async function poll() {
+        if (cancelled) {
+          console.log(`[polling] Cancelled, stopping`);
+          return;
+        }
+
+        const done = await pollStatus();
+        if (done || cancelled) {
+          console.log(`[polling] Done or cancelled, stopping`);
+          return;
+        }
+
+        const elapsed = Date.now() - startTimeRef.current;
+        const interval = getPollingInterval(elapsed);
+        console.log(`[polling] Scheduling next poll in ${interval}ms (elapsed: ${elapsed}ms)`);
+        timeoutId = setTimeout(poll, interval);
+      }
+
+      poll();
     }
 
     startPolling();
 
     return () => {
-      if (pollInterval) {
-        clearInterval(pollInterval);
+      cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
     };
-  }, [id, fetchAnalysis]);
+  }, [id, fetchAnalysis, pollStatus]);
 
   // Initial loading state
   if (loading) {
@@ -217,8 +326,8 @@ export default function SharedGamePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
-      <header className="border-b border-zinc-800 px-6 py-4">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
+      <header className="border-b border-zinc-800 px-6 py-4 fixed top-0 left-0 right-0 z-30 bg-zinc-900/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-7xl lg:pr-80 xl:pr-96 items-center justify-between">
           <Link href="/" className="text-2xl font-bold tracking-tight">
             <span className="text-orange-500">Forging</span>
           </Link>
@@ -226,20 +335,21 @@ export default function SharedGamePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-12">
+      <main className="mx-auto max-w-7xl px-6 py-12 pt-24 lg:pr-80 xl:pr-96">
         <div className="space-y-6">
-          <Link
-            href="/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-zinc-800 px-4 py-2 text-sm text-zinc-300 transition-colors hover:bg-zinc-700"
-          >
-            ← Analyze Your Own Game
-          </Link>
-
-          {/* Title */}
+          {/* Title and Summary */}
           {analysis.title && (
-            <h1 className="text-3xl font-bold text-zinc-100">
-              {analysis.title}
-            </h1>
+            <div>
+              <h1 className="text-3xl font-bold text-zinc-100">
+                {analysis.title}
+              </h1>
+              {/* Summary text as subtitle */}
+              {analysis.summary_text && (
+                <p className="mt-2 text-lg text-zinc-400">
+                  {analysis.summary_text}
+                </p>
+              )}
+            </div>
           )}
 
           {/* Game metadata - show even during processing */}
@@ -293,11 +403,11 @@ export default function SharedGamePage() {
               <div className="grid gap-6 lg:grid-cols-[1fr,400px]">
                 <div>
                   <h2 className="mb-4 text-2xl font-bold text-zinc-100">Video Analysis</h2>
-                  {analysis.video_signed_url ? (
+                  {videoUrl ? (
                     <video
                       className="w-full rounded-xl"
                       controls
-                      src={analysis.video_signed_url}
+                      src={videoUrl}
                     />
                   ) : (
                     <div className="aspect-video rounded-xl bg-zinc-800 flex items-center justify-center">
@@ -305,7 +415,7 @@ export default function SharedGamePage() {
                     </div>
                   )}
                 </div>
-                <AIThinkingPlaceholder />
+                <AIThinkingPlaceholder stage={stage} />
               </div>
             </>
           ) : (
@@ -313,12 +423,15 @@ export default function SharedGamePage() {
               {/* Convert AnalysisDetailResponse to VideoAnalysisResults format */}
               <VideoAnalysisResults
                 analysis={{
+                  game_type: analysis.game_type,
                   tips: analysis.tips,
                   game_summary: analysis.game_summary || undefined,
                   model_used: analysis.model_used || "",
                   provider: analysis.provider || "",
+                  cs2_content: analysis.cs2_content,
+                  aoe2_content: analysis.aoe2_content,
                 }}
-                videoUrl={analysis.video_signed_url}
+                videoUrl={videoUrl || analysis.video_signed_url}
                 audioUrls={analysis.audio_urls || []}
               />
             </>
@@ -326,9 +439,14 @@ export default function SharedGamePage() {
         </div>
       </main>
 
-      <footer className="border-t border-zinc-800 px-6 py-8 text-center text-sm text-zinc-500">
+      <footer className="border-t border-zinc-800 px-6 py-8 text-center text-sm text-zinc-500 lg:pr-80 xl:pr-96">
         <p>Built for the Gemini 3 Hackathon</p>
       </footer>
+
+      {/* Chat Sidebar - always visible on desktop, collapsible on mobile */}
+      {!isProcessing && analysis && (
+        <ChatSidebar analysisId={id} gameType={analysis.game_type} />
+      )}
     </div>
   );
 }

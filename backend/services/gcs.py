@@ -242,39 +242,28 @@ def generate_replay_upload_url(
 
 def generate_download_url(object_name: str) -> dict:
     """
-    Generate a signed URL for downloading/playing a video from GCS.
+    Generate a public URL for downloading/playing a file from GCS.
+
+    The bucket is configured with public read access (allUsers has objectViewer),
+    so we can use direct public URLs instead of signed URLs for much faster performance.
 
     Args:
         object_name: The object name in GCS (e.g., "videos/abc123.mp4")
 
     Returns:
-        dict with signed_url and expiry_minutes
+        dict with signed_url (actually a public URL) and expiry_minutes
 
     Raises:
         ValueError: If object doesn't exist
     """
-    # Get signing credentials
-    credentials = get_signing_credentials()
-
-    client = get_storage_client()
-    bucket = client.bucket(BUCKET_NAME)
-    blob = bucket.blob(object_name)
-
-    # Note: Skipping blob.exists() check because ADC may not have direct read access
-    # The signed URL will fail at download time if object doesn't exist
-
-    # Generate signed URL for download (GET)
-    signed_url = blob.generate_signed_url(
-        version="v4",
-        expiration=timedelta(minutes=DOWNLOAD_URL_EXPIRY_MINUTES),
-        method="GET",
-        credentials=credentials,
-    )
+    # Use public URL - bucket has allUsers objectViewer permission
+    # This is much faster than generating signed URLs
+    public_url = f"https://storage.googleapis.com/{BUCKET_NAME}/{object_name}"
 
     return {
-        "signed_url": signed_url,
+        "signed_url": public_url,  # Keep key name for API compatibility
         "object_name": object_name,
-        "expiry_minutes": DOWNLOAD_URL_EXPIRY_MINUTES,
+        "expiry_minutes": None,  # Public URLs don't expire
     }
 
 
@@ -327,6 +316,9 @@ def upload_file(local_path: str, object_name: str, content_type: str = "image/jp
 def download_to_temp(object_name: str, temp_dir: Optional[str] = None) -> str:
     """
     Download a GCS object to a temporary file using a signed URL.
+
+    NOTE: This is a synchronous blocking function. For async contexts,
+    use download_to_temp_async() instead.
 
     Args:
         object_name: The object name in GCS (e.g., "videos/abc123.mp4")
@@ -389,3 +381,23 @@ def download_to_temp(object_name: str, temp_dir: Optional[str] = None) -> str:
     logger.info(f"Download complete: {os.path.getsize(temp_path)} bytes")
 
     return temp_path
+
+
+async def download_to_temp_async(object_name: str, temp_dir: Optional[str] = None) -> str:
+    """
+    Async version of download_to_temp that doesn't block the event loop.
+
+    Runs the synchronous download in a thread pool.
+
+    Args:
+        object_name: The object name in GCS (e.g., "videos/abc123.mp4")
+        temp_dir: Optional temp directory to use
+
+    Returns:
+        Path to the downloaded file
+
+    Raises:
+        ValueError: If download fails
+    """
+    import asyncio
+    return await asyncio.to_thread(download_to_temp, object_name, temp_dir)

@@ -1,3 +1,7 @@
+"use client";
+
+import { HorizontalCarousel } from "../HorizontalCarousel";
+
 const features = [
   {
     title: "Economy & Resource Coaching",
@@ -21,7 +25,7 @@ const features = [
 
 export function Features() {
   return (
-    <section className="px-6 py-16">
+    <section className="px-6 py-16 bg-gradient-to-b from-zinc-900 via-zinc-900 to-purple-950/10">
       <div className="mx-auto max-w-6xl">
         <h2 className="text-center text-2xl font-bold text-white sm:text-3xl">
           What We&apos;re Building
@@ -30,22 +34,24 @@ export function Features() {
           Features coming to make your coaching even better
         </p>
 
-        <div className="mt-12 grid gap-6 sm:grid-cols-3">
-          {features.map((feature) => (
-            <div
-              key={feature.title}
-              className="relative rounded-xl border border-orange-500/20 bg-gradient-to-br from-orange-500/5 to-amber-500/5 p-6"
-            >
-              <span className="absolute right-4 top-4 rounded-full bg-orange-500/20 px-2 py-1 text-xs text-orange-400">
-                Building
-              </span>
-              <span className="text-3xl">{feature.icon}</span>
-              <h3 className="mt-4 text-lg font-semibold text-white">
-                {feature.title}
-              </h3>
-              <p className="mt-2 text-sm text-zinc-400">{feature.description}</p>
-            </div>
-          ))}
+        <div className="mt-12">
+          <HorizontalCarousel>
+            {features.map((feature) => (
+              <div
+                key={feature.title}
+                className="relative flex-shrink-0 w-72 rounded-xl border border-orange-500/20 bg-gradient-to-br from-orange-500/5 to-amber-500/5 p-6 hover:border-orange-500/40 transition-all hover:shadow-lg hover:shadow-orange-500/5"
+              >
+                <span className="absolute right-4 top-4 rounded-full bg-orange-500/20 px-2 py-1 text-xs text-orange-400">
+                  Building
+                </span>
+                <span className="text-3xl">{feature.icon}</span>
+                <h3 className="mt-4 text-lg font-semibold text-white">
+                  {feature.title}
+                </h3>
+                <p className="mt-2 text-sm text-zinc-400">{feature.description}</p>
+              </div>
+            ))}
+          </HorizontalCarousel>
         </div>
       </div>
     </section>

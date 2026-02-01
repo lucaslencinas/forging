@@ -11,26 +11,19 @@ import {
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
-      <header className="border-b border-zinc-800 px-6 py-4">
+    <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-900 to-purple-950/20 text-white">
+      <header className="border-b border-zinc-800/50 px-6 py-4 backdrop-blur-sm bg-zinc-900/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <Link href="/" className="text-2xl font-bold tracking-tight">
-            <span className="text-orange-500">Forging</span>
+          <Link href="/" className="flex items-center gap-3">
+            <span className="text-2xl font-bold tracking-tight text-orange-500">Forging</span>
+            <span className="hidden sm:block text-xs text-zinc-500 border-l border-zinc-700 pl-3">AI-Powered Game Coaching</span>
           </Link>
           <div className="flex items-center gap-4">
-            <a
-              href="https://github.com/lucaslencinas/forging"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-zinc-400 transition-colors hover:text-white"
-            >
-              GitHub
-            </a>
             <Link
               href="/new"
               className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-700"
             >
-              Try It Free
+              Analyze Your Game
             </Link>
           </div>
         </div>

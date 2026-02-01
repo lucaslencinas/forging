@@ -234,3 +234,31 @@ async def update_analysis(analysis_id: str, updates: dict) -> bool:
     doc_ref.update(updates)
     logger.info(f"Updated analysis {analysis_id}")
     return True
+
+
+async def get_analysis_status(analysis_id: str) -> Optional[dict]:
+    """
+    Retrieve only status fields from an analysis record.
+
+    Non-blocking: Runs Firestore call in thread pool.
+    Uses field masks for minimal data transfer.
+
+    Args:
+        analysis_id: The analysis ID.
+
+    Returns:
+        Dict with 'status', 'stage', 'error' fields, or None if not found.
+    """
+    import asyncio
+
+    def _sync_get():
+        client = get_firestore_client()
+        doc_ref = client.collection(ANALYSES_COLLECTION).document(analysis_id)
+        # Only fetch the fields we need
+        doc = doc_ref.get(field_paths=['status', 'stage', 'error'])
+        if not doc.exists:
+            return None
+        return doc.to_dict()
+
+    # Run in thread pool to avoid blocking the event loop
+    return await asyncio.to_thread(_sync_get)

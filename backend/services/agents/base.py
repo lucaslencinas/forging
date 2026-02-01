@@ -176,19 +176,25 @@ class BaseAgent(ABC):
             input_content = [{"type": "text", "text": user_prompt}]
 
         try:
+            import asyncio
+
             # Create interaction (chains to previous if provided)
             if previous_interaction_id:
                 logger.info(
                     f"[{self.name}] Chaining from interaction: {previous_interaction_id[:20]}..."
                 )
 
-            interaction = self.client.interactions.create(
-                model=os.getenv("TURTLE_MODEL", "gemini-3-pro-preview"),
-                input=input_content,
-                system_instruction=system_prompt,
-                generation_config=generation_config,
-                previous_interaction_id=previous_interaction_id,
-            )
+            # Run synchronous API call in thread pool to avoid blocking event loop
+            def _sync_create_interaction():
+                return self.client.interactions.create(
+                    model=os.getenv("TURTLE_MODEL", "gemini-3-pro-preview"),
+                    input=input_content,
+                    system_instruction=system_prompt,
+                    generation_config=generation_config,
+                    previous_interaction_id=previous_interaction_id,
+                )
+
+            interaction = await asyncio.to_thread(_sync_create_interaction)
 
             # Debug: log available attributes
             logger.debug(f"[{self.name}] Interaction attributes: {dir(interaction)}")
@@ -258,11 +264,12 @@ class BaseAgent(ABC):
             return self._format_generic_replay()
 
     def _format_aoe2_replay(self) -> str:
-        """Format AoE2 replay data with player identification guidance."""
+        """Format AoE2 replay data with POV player clearly identified."""
         summary = self.replay_data.get("summary", {})
         players = summary.get("players", [])
         player_stats = self.replay_data.get("player_stats", {})
         actions = self.replay_data.get("actions", [])
+        pov_player = self.replay_data.get("pov_player")
 
         lines = [
             "=" * 60,
@@ -272,21 +279,70 @@ class BaseAgent(ABC):
             f"Duration: {summary.get('duration', 'Unknown')} (game time)",
             f"Game Speed: {summary.get('game_speed', 'Normal')}",
             "",
-            "-" * 60,
-            "PLAYERS IN THIS GAME:",
-            "-" * 60,
         ]
+
+        # POV player identification - CRITICAL section
+        if pov_player:
+            # Find POV player details
+            pov_player_data = None
+            pov_player_num = None
+            for i, p in enumerate(players):
+                if p.get("name", "").lower() == pov_player.lower():
+                    pov_player_data = p
+                    pov_player_num = i + 1
+                    break
+
+            lines.extend([
+                "=" * 60,
+                f"POV PLAYER: {pov_player}",
+                "=" * 60,
+                "",
+                "CRITICAL: You are coaching THIS player. ALL tips must be about their gameplay.",
+                "Do NOT give tips about what their opponent did.",
+                "",
+            ])
+
+            if pov_player_data:
+                lines.extend([
+                    f"POV Player Details:",
+                    f"  Name: {pov_player_data.get('name')}",
+                    f"  Civilization: {pov_player_data.get('civilization', 'Unknown')}",
+                    f"  Color: {pov_player_data.get('color', 'Unknown')}",
+                    f"  Result: {'WON' if pov_player_data.get('winner') else 'LOST'}",
+                ])
+
+                # Add age uptimes for POV player
+                uptime = pov_player_data.get("uptime", {})
+                if uptime:
+                    feudal = uptime.get("feudal_age") or uptime.get("feudal_age_age")
+                    castle = uptime.get("castle_age") or uptime.get("castle_age_age")
+                    imperial = uptime.get("imperial_age") or uptime.get("imperial_age_age")
+                    if feudal:
+                        lines.append(f"  Feudal Age: {feudal // 60}:{feudal % 60:02d}")
+                    if castle:
+                        lines.append(f"  Castle Age: {castle // 60}:{castle % 60:02d}")
+                    if imperial:
+                        lines.append(f"  Imperial Age: {imperial // 60}:{imperial % 60:02d}")
+                lines.append("")
+
+        lines.extend([
+            "-" * 60,
+            "ALL PLAYERS IN THIS GAME:",
+            "-" * 60,
+        ])
 
         # List all players with their details
         for i, p in enumerate(players):
             player_num = i + 1
+            is_pov = pov_player and p.get("name", "").lower() == pov_player.lower()
+            pov_marker = " <<< POV PLAYER (coaching this player)" if is_pov else ""
             winner_str = "[WINNER]" if p.get("winner") else "[LOSER]"
             civ = p.get("civilization", "Unknown")
             color = p.get("color", "Unknown")
             rating = p.get("rating", "Unrated")
             eapm = p.get("eapm", 0)
 
-            lines.append(f"  Player {player_num}: {p.get('name', 'Unknown')}")
+            lines.append(f"  Player {player_num}: {p.get('name', 'Unknown')}{pov_marker}")
             lines.append(f"    Civilization: {civ}")
             lines.append(f"    Color: {color}")
             lines.append(f"    Rating: {rating}, eAPM: {eapm}")
@@ -316,30 +372,22 @@ class BaseAgent(ABC):
                     lines.append(f"    Age Times: {', '.join(unique_parts)}")
             lines.append("")
 
-        # Player identification guidance
-        lines.extend([
-            "-" * 60,
-            "HOW TO IDENTIFY THE POV PLAYER FROM VIDEO:",
-            "-" * 60,
-            "The video shows one player's perspective. To identify who:",
-            "- Look at the minimap orientation (your base is typically bottom)",
-            "- Note the color of YOUR Town Center and villagers",
-            "- The HUD shows your resources and population",
-            "- Actions you see being performed are by the POV player",
-            "- Match the player's color to the list above",
-            "",
-            "KEY DIFFERENCES TO VERIFY (cross-reference with video):",
-        ])
-
-        # Add key differences between players to help verification
+        # Key differences between players (for context, not identification)
         if len(players) >= 2:
             p1 = players[0]
             p2 = players[1]
             p1_stats = player_stats.get(1, {})
             p2_stats = player_stats.get(2, {})
 
+            lines.extend([
+                "-" * 60,
+                "KEY DIFFERENCES BETWEEN PLAYERS:",
+                "-" * 60,
+            ])
+
             # Civilization difference
-            lines.append(f"  - Player 1 ({p1.get('color', '?')}) plays {p1.get('civilization', '?')}, Player 2 ({p2.get('color', '?')}) plays {p2.get('civilization', '?')}")
+            lines.append(f"  - {p1.get('name', 'P1')} ({p1.get('color', '?')}) plays {p1.get('civilization', '?')}")
+            lines.append(f"  - {p2.get('name', 'P2')} ({p2.get('color', '?')}) plays {p2.get('civilization', '?')}")
 
             # Key unit differences
             p1_units = p1_stats.get("units_trained", {})
@@ -349,13 +397,14 @@ class BaseAgent(ABC):
             if p1_military or p2_military:
                 p1_mil_str = ", ".join(p1_military[:3]) if p1_military else "none"
                 p2_mil_str = ", ".join(p2_military[:3]) if p2_military else "none"
-                lines.append(f"  - Player 1 made: {p1_mil_str}; Player 2 made: {p2_mil_str}")
+                lines.append(f"  - {p1.get('name', 'P1')} trained: {p1_mil_str}")
+                lines.append(f"  - {p2.get('name', 'P2')} trained: {p2_mil_str}")
 
             # Winner/loser
             if p1.get("winner"):
-                lines.append(f"  - Player 1 ({p1.get('color', '?')}) WON the game")
+                lines.append(f"  - {p1.get('name', 'P1')} WON the game")
             else:
-                lines.append(f"  - Player 2 ({p2.get('color', '?')}) WON the game")
+                lines.append(f"  - {p2.get('name', 'P2')} WON the game")
 
         lines.append("")
 
@@ -367,14 +416,17 @@ class BaseAgent(ABC):
                 "-" * 60,
             ])
             for player_num, stats in sorted(player_stats.items()):
-                # Find player name
+                # Find player name and check if POV
                 player_name = "Unknown"
+                is_pov = False
                 for i, p in enumerate(players):
                     if i + 1 == player_num:
                         player_name = p.get("name", "Unknown")
+                        is_pov = pov_player and player_name.lower() == pov_player.lower()
                         break
 
-                lines.append(f"\n  Player {player_num} ({player_name}):")
+                pov_marker = " <<< POV PLAYER" if is_pov else ""
+                lines.append(f"\n  Player {player_num} ({player_name}){pov_marker}:")
 
                 # Units trained
                 units = stats.get("units_trained", {})
@@ -986,10 +1038,14 @@ async def upload_video_to_gemini(client: genai.Client, video_path: str) -> Any:
 
     logger.info(f"Uploading video to Gemini: {video_path}")
 
-    with open(video_path, "rb") as f:
-        video_file = client.files.upload(
-            file=f, config=types.UploadFileConfig(mime_type="video/mp4")
-        )
+    # Run synchronous upload in thread pool to avoid blocking event loop
+    def _sync_upload():
+        with open(video_path, "rb") as f:
+            return client.files.upload(
+                file=f, config=types.UploadFileConfig(mime_type="video/mp4")
+            )
+
+    video_file = await asyncio.to_thread(_sync_upload)
 
     logger.info(f"Video uploaded: {video_file.name}, waiting for ACTIVE state...")
 
@@ -997,7 +1053,8 @@ async def upload_video_to_gemini(client: genai.Client, video_path: str) -> Any:
     max_wait = 300  # 5 minutes max
     waited = 0
     while waited < max_wait:
-        file_info = client.files.get(name=video_file.name)
+        # Run synchronous API call in thread pool
+        file_info = await asyncio.to_thread(client.files.get, name=video_file.name)
         state = (
             file_info.state.name
             if hasattr(file_info.state, "name")

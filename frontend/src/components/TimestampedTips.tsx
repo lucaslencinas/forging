@@ -7,6 +7,8 @@ interface TimestampedTip {
   timestamp_display: string;
   tip: string;
   category: string;
+  reasoning?: string | null;
+  confidence?: number | null;
 }
 
 interface TimestampedTipsProps {
@@ -59,6 +61,25 @@ const categoryConfig: Record<string, { icon: string; color: string; bgColor: str
     color: "text-purple-400",
     bgColor: "bg-purple-500/10",
     pillColor: "bg-purple-500/20 text-purple-400",
+  },
+  // CS2 Observer categories
+  exploitable_pattern: {
+    icon: "🔓",
+    color: "text-red-400",
+    bgColor: "bg-red-500/10",
+    pillColor: "bg-red-500/20 text-red-400",
+  },
+  rank_up_habit: {
+    icon: "📈",
+    color: "text-orange-400",
+    bgColor: "bg-orange-500/10",
+    pillColor: "bg-orange-500/20 text-orange-400",
+  },
+  missed_adaptation: {
+    icon: "🔄",
+    color: "text-yellow-400",
+    bgColor: "bg-yellow-500/10",
+    pillColor: "bg-yellow-500/20 text-yellow-400",
   },
 };
 
@@ -172,6 +193,42 @@ export function TimestampedTips({ tips, currentTime, onSeek }: TimestampedTipsPr
                   `}>
                     {tip.tip}
                   </p>
+
+                  {/* Expanded content: reasoning and confidence */}
+                  {isExpanded && (tip.reasoning || tip.confidence) && (
+                    <div className="mt-3 pt-3 border-t border-zinc-700 space-y-2">
+                      {/* Confidence indicator */}
+                      {tip.confidence && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-zinc-500">Confidence:</span>
+                          <div className="h-2 w-20 bg-zinc-700 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all ${
+                                tip.confidence >= 9
+                                  ? "bg-green-500"
+                                  : tip.confidence >= 8
+                                    ? "bg-green-400"
+                                    : tip.confidence >= 6
+                                      ? "bg-yellow-500"
+                                      : "bg-red-500"
+                              }`}
+                              style={{ width: `${tip.confidence * 10}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-zinc-400">{tip.confidence}/10</span>
+                        </div>
+                      )}
+
+                      {/* Reasoning */}
+                      {tip.reasoning && (
+                        <div className="text-xs text-zinc-400">
+                          <span className="text-zinc-500">Why: </span>
+                          {tip.reasoning}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="mt-2 flex items-center gap-2">
                     <span className={`
                       inline-block rounded-full px-2 py-0.5 text-xs font-medium
@@ -179,6 +236,17 @@ export function TimestampedTips({ tips, currentTime, onSeek }: TimestampedTipsPr
                     `}>
                       {tip.category}
                     </span>
+                    {/* Show confidence badge inline when collapsed */}
+                    {!isExpanded && tip.confidence && (
+                      <span className={`
+                        inline-block rounded-full px-2 py-0.5 text-xs font-medium
+                        ${tip.confidence >= 9 ? "bg-green-500/20 text-green-400" :
+                          tip.confidence >= 8 ? "bg-green-400/20 text-green-300" :
+                          "bg-yellow-500/20 text-yellow-400"}
+                      `}>
+                        {tip.confidence}/10
+                      </span>
+                    )}
                     <span className="text-xs text-zinc-500">
                       {isExpanded ? "Click to collapse" : "Click to expand"}
                     </span>

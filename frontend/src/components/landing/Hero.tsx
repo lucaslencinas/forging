@@ -3,8 +3,10 @@ import Link from "next/link";
 export function Hero() {
   return (
     <section className="relative overflow-hidden px-6 py-24 sm:py-32">
-      {/* Subtle gradient background */}
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-orange-900/20 via-zinc-900 to-zinc-900" />
+      {/* Subtle gradient background with purple/blue accents */}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-br from-zinc-900 via-zinc-900 to-purple-950/30" />
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-orange-900/20 via-transparent to-transparent" />
+      <div className="absolute top-0 right-0 w-1/2 h-1/2 -z-10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-900/10 via-transparent to-transparent" />
 
       <div className="mx-auto max-w-4xl text-center">
         <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
@@ -21,14 +23,6 @@ export function Hero() {
           >
             Analyze Your Game
           </Link>
-          <a
-            href="https://github.com/lucaslencinas/forging"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-semibold leading-6 text-zinc-400 transition-colors hover:text-white"
-          >
-            View on GitHub <span aria-hidden="true">→</span>
-          </a>
         </div>
       </div>
     </section>

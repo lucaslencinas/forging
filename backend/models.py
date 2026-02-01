@@ -96,6 +96,44 @@ class TimestampedTip(BaseModel):
     timestamp_display: str  # e.g., "2:05"
     tip: str
     category: str  # "economy" | "military" | "strategy"
+    reasoning: str | None = None  # AI's reasoning for generating this tip
+    confidence: int | None = None  # 1-10 confidence score from verification
+
+
+# CS2-specific models
+class RoundTimeline(BaseModel):
+    """Timeline entry for a round in CS2."""
+    round: int
+    start_seconds: float
+    start_time: str  # "0:15"
+    end_seconds: float
+    end_time: str  # "1:32"
+    death_seconds: float | None = None
+    death_time: str | None = None
+    status: str  # "SURVIVED" or "DIED at X:XX"
+
+
+class CS2Content(BaseModel):
+    """CS2-specific analysis content."""
+    rounds_timeline: list[RoundTimeline] = []  # Round navigation data
+
+
+class AoE2PlayerTimeline(BaseModel):
+    """Age progression timeline for a single AoE2 player."""
+    name: str
+    civilization: str
+    color: str
+    winner: bool
+    # Age-up times in game seconds (from replay parser - authoritative)
+    feudal_age_seconds: int | None = None
+    castle_age_seconds: int | None = None
+    imperial_age_seconds: int | None = None
+
+
+class AoE2Content(BaseModel):
+    """AoE2-specific analysis content."""
+    players_timeline: list[AoE2PlayerTimeline] = []  # Per-player age progression
+    pov_player_index: int | None = None  # Index of the POV player (0 or 1)
 
 
 class VideoAnalysisResponse(BaseModel):
@@ -109,6 +147,9 @@ class VideoAnalysisResponse(BaseModel):
     model_used: str
     provider: str
     error: str | None = None
+    # Game-specific content (discriminated by game_type)
+    cs2_content: CS2Content | None = None
+    aoe2_content: AoE2Content | None = None
 
 
 # Analysis status enum
@@ -125,6 +166,7 @@ class SavedAnalysisRequest(BaseModel):
     title: str | None = None
     creator_name: str | None = None
     is_public: bool = True
+    pov_player: str | None = None  # Username of the POV player for CS2
 
 
 class AnalysisStartResponse(BaseModel):
@@ -138,6 +180,7 @@ class AnalysisStatusResponse(BaseModel):
     """Response for checking analysis status."""
     id: str
     status: str  # "pending" | "processing" | "complete" | "error"
+    stage: str | None = None  # Current processing stage
     error: str | None = None
 
 
@@ -184,6 +227,40 @@ class AnalysisListResponse(BaseModel):
     total: int
 
 
+# Demo/Replay parsing models (for POV player selection)
+class DemoParseRequest(BaseModel):
+    """Request to parse demo file for player list."""
+    demo_object_name: str
+
+
+class DemoPlayer(BaseModel):
+    """Player info from demo."""
+    name: str
+    team: str | None = None
+
+
+class DemoParseResponse(BaseModel):
+    """Response with player list from demo."""
+    players: list[DemoPlayer]
+
+
+class ReplayParseRequest(BaseModel):
+    """Request to parse replay file for player list."""
+    replay_object_name: str
+
+
+class ReplayPlayer(BaseModel):
+    """Player info from AoE2 replay."""
+    name: str
+    civilization: str | None = None
+    color: str | None = None
+
+
+class ReplayParseResponse(BaseModel):
+    """Response with player list from replay."""
+    players: list[ReplayPlayer]
+
+
 class AnalysisDetailResponse(BaseModel):
     """Full analysis data for viewing a shared analysis."""
     model_config = ConfigDict(protected_namespaces=())
@@ -192,6 +269,7 @@ class AnalysisDetailResponse(BaseModel):
     status: str = "complete"  # "pending" | "processing" | "complete" | "error"
     game_type: str
     title: str
+    summary_text: str | None = None  # 100-300 char AI-generated summary for TTS
     creator_name: str | None = None
     players: list[str] = []
     map: str | None = None
@@ -207,3 +285,19 @@ class AnalysisDetailResponse(BaseModel):
     error: str | None = None
     created_at: str
     audio_urls: list[str] = []  # Signed URLs for tip audio files (TTS)
+    # Game-specific content
+    cs2_content: CS2Content | None = None
+    aoe2_content: AoE2Content | None = None
+
+
+# Chat models (session-only, no persistence)
+class ChatRequest(BaseModel):
+    """Request for follow-up chat about the analysis."""
+    message: str
+    previous_interaction_id: str | None = None  # For chaining follow-up messages
+
+
+class ChatResponse(BaseModel):
+    """Response from the chat endpoint."""
+    response: str
+    interaction_id: str  # Can be used for follow-up messages

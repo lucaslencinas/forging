@@ -15,8 +15,10 @@ AI-powered game analysis for esports improvement. Upload your replay files or ga
 - 🎥 **Video Coaching** - Upload gameplay recordings (MP4, max 700MB, 30 min) for AI-powered feedback
 - ⏱️ **Timestamped Tips** - Clickable timestamps to jump to specific moments in your gameplay
 - 🎯 **Personalized Coaching** - 3-5 actionable tips tailored to your gameplay
+- 💬 **Follow-up Chat** - Ask the AI coach questions about your gameplay
 - 🔗 **Shareable Links** - Share your analysis with teammates or friends
 - 🎠 **Community Carousel** - Browse analyses from the community
+- 🎮 **CS2 Round Navigation** - Navigate by round with death time awareness
 
 ## Supported Games
 
@@ -39,8 +41,14 @@ AI-powered game analysis for esports improvement. Upload your replay files or ga
 - ⬜ User accounts and analysis history
 - ⬜ Build order visualization
 - ⬜ Comparison with pro player benchmarks
-- ⬜ AI chat with your replay ("Why did I lose that fight?")
+- ✅ AI chat with your analysis ("Why did I lose that fight?")
 - ⬜ Skill progression tracking across multiple games
+
+**Future - Gemini Live API:**
+- ⬜ Interactive voice replay review - Ask questions while watching your replay, get spoken coaching responses
+- ⬜ Voice Q&A with analysis - Have a conversation about your analysis without typing
+- ⬜ Live coaching during gameplay - Real-time voice tips while you play
+- ⬜ Multiplayer review sessions - Team reviews with shared voice AI coach
 
 ## Architecture
 

@@ -2,13 +2,24 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useVideoUpload } from "@/hooks/useVideoUpload";
+import { PlayerSelector } from "@/components/PlayerSelector";
 
 type GameType = "aoe2" | "cs2";
 
+interface DemoPlayer {
+  name: string;
+  team: string | null;
+}
+
+interface ReplayPlayer {
+  name: string;
+  civilization: string | null;
+  color: string | null;
+}
+
 interface FileUploadProps {
   gameType: GameType;
-  onAnalyze: (replayFile: File, videoObjectName?: string) => void;
-  onVideoAnalyze?: (videoObjectName: string, replayFile: File | null, model?: string) => void;
+  onVideoAnalyze: (videoObjectName: string, replayFile: File | null, povPlayer: string | null) => void;
   isLoading: boolean;
   loadingState: string;
 }
@@ -26,42 +37,112 @@ const gameConfig = {
   },
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export function FileUpload({
   gameType,
-  onAnalyze,
   onVideoAnalyze,
   isLoading,
   loadingState,
 }: FileUploadProps) {
   const [replayFile, setReplayFile] = useState<File | null>(null);
+  const [replayObjectName, setReplayObjectName] = useState<string | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>("");
   const videoUpload = useVideoUpload();
+
+  // Player selection state (CS2 and AoE2)
+  const [players, setPlayers] = useState<(DemoPlayer | ReplayPlayer)[]>([]);
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [isParsingReplay, setIsParsingReplay] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
 
   const config = gameConfig[gameType];
 
-  // Fetch available models on mount
+  // Upload replay and parse for players when both files are ready
   useEffect(() => {
-    async function fetchModels() {
-      try {
-        const response = await fetch(`${API_BASE}/api/video/models`);
-        if (response.ok) {
-          const data = await response.json();
-          setAvailableModels(data.models || []);
-          if (data.models?.length > 0) {
-            setSelectedModel(data.models[0]); // Default to first model
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch models:", error);
+    const uploadAndParse = async () => {
+      if (!replayFile || videoUpload.status !== "complete") {
+        return;
       }
-    }
-    fetchModels();
-  }, []);
+
+      // Skip if already uploaded this file
+      if (replayObjectName) {
+        return;
+      }
+
+      setIsParsingReplay(true);
+      setParseError(null);
+
+      try {
+        // Step 1: Upload replay file to GCS
+        const uploadUrlResponse = await fetch(`${API_URL}/api/replay/upload-url`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: replayFile.name,
+            content_type: "application/octet-stream",
+            file_size: replayFile.size,
+          }),
+        });
+
+        if (!uploadUrlResponse.ok) {
+          throw new Error("Failed to get replay upload URL");
+        }
+
+        const { signed_url, object_name } = await uploadUrlResponse.json();
+
+        // Upload to GCS
+        const uploadResponse = await fetch(signed_url, {
+          method: "PUT",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: replayFile,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload replay file");
+        }
+
+        setReplayObjectName(object_name);
+
+        // Step 2: Parse for players (different endpoint based on game type)
+        const parseEndpoint = gameType === "cs2"
+          ? `${API_URL}/api/demo/parse-players`
+          : `${API_URL}/api/replay/parse-players`;
+
+        const parseBody = gameType === "cs2"
+          ? { demo_object_name: object_name }
+          : { replay_object_name: object_name };
+
+        const parseResponse = await fetch(parseEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parseBody),
+        });
+
+        if (!parseResponse.ok) {
+          throw new Error(`Failed to parse ${gameType === "cs2" ? "demo" : "replay"} file`);
+        }
+
+        const data = await parseResponse.json();
+        setPlayers(data.players);
+      } catch (err) {
+        setParseError(err instanceof Error ? err.message : "Failed to parse replay");
+      } finally {
+        setIsParsingReplay(false);
+      }
+    };
+
+    uploadAndParse();
+  }, [gameType, replayFile, videoUpload.status, replayObjectName]);
+
+  // Reset player state when replay file changes
+  useEffect(() => {
+    setPlayers([]);
+    setSelectedPlayer(null);
+    setReplayObjectName(null);
+    setParseError(null);
+  }, [replayFile]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -115,24 +196,21 @@ export function FileUpload({
     videoUpload.reset();
   };
 
-  const handleSubmit = () => {
-    if (replayFile) {
-      // Pass the uploaded video object name if available
-      onAnalyze(replayFile, videoUpload.objectName || undefined);
-    }
-  };
-
   const handleVideoAnalyze = () => {
-    if (videoUpload.objectName && onVideoAnalyze) {
-      onVideoAnalyze(videoUpload.objectName, replayFile, selectedModel || undefined);
+    if (videoUpload.objectName && replayFile) {
+      onVideoAnalyze(videoUpload.objectName, replayFile, selectedPlayer);
     }
   };
 
   const isVideoUploading = videoUpload.status === "uploading" || videoUpload.status === "validating";
   const isVideoReady = videoUpload.status === "complete";
-  const canSubmit = replayFile && !isLoading && !isVideoUploading;
-  // Both video AND replay file are required for video analysis
-  const canVideoAnalyze = isVideoReady && videoUpload.objectName && replayFile && !isLoading && onVideoAnalyze;
+
+  // Both game types now require player selection
+  const isPlayerSelected = selectedPlayer !== null;
+  const showPlayerSelector = isVideoReady && replayFile && (players.length > 0 || isParsingReplay);
+
+  // Both video AND replay file are required, plus player selection
+  const canAnalyze = isVideoReady && videoUpload.objectName && replayFile && isPlayerSelected && !isLoading && !isParsingReplay;
 
   return (
     <div className="space-y-6">
@@ -248,21 +326,36 @@ export function FileUpload({
         )}
       </div>
 
-      {/* Action Buttons */}
+      {/* Player Selector */}
+      {showPlayerSelector && (
+        <PlayerSelector
+          players={players}
+          selectedPlayer={selectedPlayer}
+          onSelect={setSelectedPlayer}
+          isLoading={isParsingReplay}
+          gameType={gameType}
+        />
+      )}
+
+      {/* Parse error */}
+      {parseError && (
+        <p className="text-center text-sm text-red-400">{parseError}</p>
+      )}
+
+      {/* Action Button */}
       <div className="space-y-3">
-        {/* Analyze Replay Button */}
         <button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
+          onClick={handleVideoAnalyze}
+          disabled={!canAnalyze}
           className={`
             w-full rounded-xl py-4 text-lg font-semibold transition-all
-            ${canSubmit
+            ${canAnalyze
               ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600"
               : "cursor-not-allowed bg-zinc-700 text-zinc-500"
             }
           `}
         >
-          {isLoading && loadingState !== "video-analyzing" ? (
+          {isLoading && loadingState === "video-analyzing" ? (
             <span className="flex items-center justify-center gap-2">
               <svg
                 className="h-5 w-5 animate-spin"
@@ -283,79 +376,22 @@ export function FileUpload({
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                 />
               </svg>
-              {loadingState === "uploading" ? "Uploading..." : "Analyzing with AI..."}
+              Analyzing Gameplay...
             </span>
           ) : (
-            "Analyze Replay"
+            "Analyze Gameplay"
           )}
         </button>
 
-        {/* Model Selection Dropdown */}
-        {onVideoAnalyze && availableModels.length > 0 && (
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-zinc-400">Model:</label>
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="flex-1 rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-purple-500"
-            >
-              {availableModels.map((model) => (
-                <option key={model} value={model}>
-                  {model}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Analyze with Video Button */}
-        {onVideoAnalyze && (
-          <button
-            onClick={handleVideoAnalyze}
-            disabled={!canVideoAnalyze}
-            className={`
-              w-full rounded-xl py-4 text-lg font-semibold transition-all border-2
-              ${canVideoAnalyze
-                ? "border-purple-500 bg-purple-500/20 text-purple-300 hover:bg-purple-500/30"
-                : "cursor-not-allowed border-zinc-700 bg-zinc-800 text-zinc-500"
-              }
-            `}
-          >
-            {isLoading && loadingState === "video-analyzing" ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="h-5 w-5 animate-spin"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                  />
-                </svg>
-                Analyzing Video with AI...
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-2">
-                <span>🎥</span>
-                Analyze with Video
-              </span>
-            )}
-          </button>
-        )}
-
-        {videoFile && !replayFile && onVideoAnalyze && (
+        {videoFile && !replayFile && (
           <p className="text-center text-sm text-amber-500">
-            Replay file required for video analysis
+            Replay file required for analysis
+          </p>
+        )}
+
+        {isVideoReady && replayFile && !selectedPlayer && !isParsingReplay && players.length > 0 && (
+          <p className="text-center text-sm text-amber-500">
+            Select your player above to continue
           </p>
         )}
       </div>

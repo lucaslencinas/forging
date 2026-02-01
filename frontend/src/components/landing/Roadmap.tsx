@@ -51,7 +51,7 @@ const colorStyles = {
 
 export function Roadmap() {
   return (
-    <section className="px-6 py-16">
+    <section className="px-6 py-16 bg-gradient-to-b from-zinc-900 via-zinc-900 to-purple-950/10">
       <div className="mx-auto max-w-6xl">
         <h2 className="text-center text-2xl font-bold text-white sm:text-3xl">
           Product Roadmap

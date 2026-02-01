@@ -29,73 +29,179 @@ from models import (
     SavedAnalysisRequest, SavedAnalysisResponse, AnalysisListItem,
     AnalysisListResponse, AnalysisDetailResponse, TimestampedTip,
     AnalysisStartResponse, AnalysisStatusResponse,
+    CS2Content, AoE2Content, AoE2PlayerTimeline, RoundTimeline,
+    DemoParseRequest, DemoParseResponse, DemoPlayer,
+    ReplayParseRequest, ReplayParseResponse, ReplayPlayer,
+    ChatRequest, ChatResponse,
 )
-from services.aoe2_parser import parse_aoe2_replay
-from services.cs2_parser import parse_cs2_demo
+from services.parsers import parse_aoe2_replay, parse_cs2_demo
 from services.analyzer import analyze_with_gemini, list_available_models
 from services import gcs
-from services import video_analyzer
-from services import cs2_video_analyzer
 from services import firestore
 from services import thumbnail
 from services.llm.gemini import GeminiProvider
-from services.agents.orchestrator import PipelineOrchestrator
 from services.agents.base import get_gemini_client, upload_video_to_gemini
+from services.pipelines import PipelineFactory
 
 list_available_models()
+
+
+from typing import Callable, Awaitable, Any
+
+
+def sanitize_for_firestore(data: Any) -> Any:
+    """
+    Recursively sanitize data for Firestore storage.
+
+    Firestore doesn't accept:
+    - Empty string keys in dicts
+    - None keys in dicts
+
+    This function removes or renames such keys.
+    """
+    if isinstance(data, dict):
+        sanitized = {}
+        for k, v in data.items():
+            # Skip empty or None keys
+            if k == "" or k is None:
+                continue
+            # Ensure key is a string
+            key = str(k) if not isinstance(k, str) else k
+            sanitized[key] = sanitize_for_firestore(v)
+        return sanitized
+    elif isinstance(data, list):
+        return [sanitize_for_firestore(item) for item in data]
+    else:
+        return data
 
 
 async def run_analysis_pipeline(
     video_object_name: str,
     replay_data: dict,
-) -> VideoAnalysisResponse:
+    game_type: str = "cs2",
+    on_stage_change: Callable[[str], Awaitable[None]] | None = None,
+) -> tuple[VideoAnalysisResponse, dict, dict]:
     """
-    Run the Pipeline for CS2 video analysis.
+    Run the game-specific analysis pipeline.
 
-    Converts ProducerOutput (VerifiedTip) to VideoAnalysisResponse (TimestampedTip).
+    Uses PipelineFactory to create the appropriate pipeline for the game type.
+
+    Args:
+        video_object_name: GCS object name for the video
+        replay_data: Parsed replay/demo data
+        game_type: 'cs2' or 'aoe2'
+        on_stage_change: Optional callback to report stage changes
+
+    Returns:
+        Tuple of (VideoAnalysisResponse, pipeline_metadata, gemini_file_info)
     """
-    # Download video from GCS
-    video_tmp_path = gcs.download_to_temp(video_object_name)
+    # Download video from GCS (async to not block event loop)
+    video_tmp_path = await gcs.download_to_temp_async(video_object_name)
+
+    # Stage: Uploading video to Gemini
+    if on_stage_change:
+        await on_stage_change("uploading_video")
 
     # Upload video to Gemini
     client = get_gemini_client()
     video_file = await upload_video_to_gemini(client, video_tmp_path)
 
     try:
-        # Run pipeline
-        orchestrator = PipelineOrchestrator(
-            video_file=video_file,
-            replay_data=replay_data,
-            game_type="cs2",
-            knowledge_base="",
-        )
-        output = await orchestrator.analyze()
+        # Stage: Analyzing gameplay
+        if on_stage_change:
+            await on_stage_change("analyzing")
 
-        # Convert VerifiedTip → TimestampedTip
-        tips = [
-            TimestampedTip(
+        # Create and run game-specific pipeline
+        pipeline = PipelineFactory.create(game_type, video_file, replay_data)
+        output = await pipeline.analyze()
+
+        # Convert pipeline tips to TimestampedTip
+        # Get reasoning from observer output (matched by tip ID)
+        observer_output = output.metadata.get("observer_output", {})
+        observer_tips_by_id = {
+            t.get("id"): t for t in observer_output.get("tips", [])
+        }
+
+        tips = []
+        for tip in output.tips:
+            # Get reasoning from observer tip (validator doesn't have it)
+            observer_tip = observer_tips_by_id.get(tip.id, {})
+            reasoning = observer_tip.get("reasoning")
+
+            tips.append(TimestampedTip(
                 timestamp_seconds=tip.timestamp.video_seconds if tip.timestamp else 0,
                 timestamp_display=tip.timestamp.display if tip.timestamp else "0:00",
                 tip=tip.tip_text,
                 category=tip.category,
-            )
-            for tip in output.tips
-        ]
+                reasoning=reasoning,
+                confidence=tip.confidence if hasattr(tip, "confidence") else None,
+            ))
 
-        return VideoAnalysisResponse(
+        # Build game-specific content
+        cs2_content = None
+        aoe2_content = None
+
+        if game_type == "cs2":
+            # Extract rounds_timeline from metadata
+            rounds_timeline_raw = output.metadata.get("rounds_timeline", [])
+            rounds_timeline = [RoundTimeline(**r) for r in rounds_timeline_raw]
+            cs2_content = CS2Content(rounds_timeline=rounds_timeline)
+        elif game_type == "aoe2":
+            # Build player timeline from replay data (authoritative age-up times)
+            players_timeline = []
+            pov_player = replay_data.get("pov_player") if replay_data else None
+            pov_player_index = None
+
+            if replay_data and "summary" in replay_data:
+                for i, player in enumerate(replay_data["summary"].get("players", [])):
+                    uptime = player.get("uptime", {})
+                    player_name = player.get("name", "Unknown")
+
+                    # Track POV player index
+                    if pov_player and player_name.lower() == pov_player.lower():
+                        pov_player_index = i
+
+                    players_timeline.append(AoE2PlayerTimeline(
+                        name=player_name,
+                        civilization=player.get("civilization", "Unknown"),
+                        color=player.get("color", "Unknown"),
+                        winner=player.get("winner", False),
+                        feudal_age_seconds=uptime.get("feudal_age") or uptime.get("feudal_age_age"),
+                        castle_age_seconds=uptime.get("castle_age") or uptime.get("castle_age_age"),
+                        imperial_age_seconds=uptime.get("imperial_age") or uptime.get("imperial_age_age"),
+                    ))
+            aoe2_content = AoE2Content(
+                players_timeline=players_timeline,
+                pov_player_index=pov_player_index,
+            )
+
+        response = VideoAnalysisResponse(
             video_object_name=video_object_name,
             duration_seconds=0,
             tips=tips,
-            model_used="gemini-2.5-pro",
+            model_used="gemini-3-pro-preview",
             provider="gemini",
+            cs2_content=cs2_content,
+            aoe2_content=aoe2_content,
         )
+
+        # Include summary_text in metadata for storage
+        metadata = {
+            **output.metadata,
+            "summary_text": output.summary_text,
+        }
+
+        # Return video file info for chat use (file expires after 48h)
+        gemini_file_info = {
+            "uri": video_file.uri,
+            "name": video_file.name,
+        }
+
+        return response, metadata, gemini_file_info
+
     finally:
-        # Cleanup
-        try:
-            client.files.delete(name=video_file.name)
-            logger.info(f"Deleted Gemini video file: {video_file.name}")
-        except Exception as e:
-            logger.warning(f"Failed to delete Gemini video file: {e}")
+        # Cleanup local temp file only
+        # Keep Gemini video file for chat use (expires after 48h anyway)
         if os.path.exists(video_tmp_path):
             os.unlink(video_tmp_path)
 
@@ -312,20 +418,12 @@ async def analyze_video_endpoint(
             logger.warning(f"Failed to parse replay/demo: {e}")
 
     try:
-        # Route to appropriate analyzer based on game type
-        if game_type == "cs2":
-            result = await run_analysis_pipeline(
-                video_object_name=video_object_name,
-                replay_data=replay_data,
-            )
-        else:
-            # Default to AoE2
-            result = await video_analyzer.analyze_video(
-                video_object_name=video_object_name,
-                replay_data=replay_data,
-                duration_seconds=0,
-                model=model,
-            )
+        # Use unified pipeline for all game types
+        result, _, _ = await run_analysis_pipeline(
+            video_object_name=video_object_name,
+            replay_data=replay_data,
+            game_type=game_type,
+        )
 
         return result
 
@@ -349,6 +447,53 @@ async def get_replay_upload_url(request: ReplayUploadRequest) -> ReplayUploadRes
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# Demo parsing endpoint (for POV player selection)
+@app.post("/api/demo/parse-players", response_model=DemoParseResponse)
+async def parse_demo_players(request: DemoParseRequest) -> DemoParseResponse:
+    """Parse a demo file from GCS and return player list."""
+    tmp_path = None
+    try:
+        tmp_path = gcs.download_to_temp(request.demo_object_name)
+        demo_data = parse_cs2_demo(tmp_path)
+        players = []
+        for p in demo_data.get("summary", {}).get("players", []):
+            players.append(DemoPlayer(
+                name=p.get("name", "Unknown"),
+                team=p.get("team") or p.get("starting_side"),
+            ))
+        return DemoParseResponse(players=players)
+    except Exception as e:
+        logger.error(f"Failed to parse demo: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to parse demo: {str(e)}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+# Replay parsing endpoint (for AoE2 POV player selection)
+@app.post("/api/replay/parse-players", response_model=ReplayParseResponse)
+async def parse_replay_players(request: ReplayParseRequest) -> ReplayParseResponse:
+    """Parse an AoE2 replay file from GCS and return player list."""
+    tmp_path = None
+    try:
+        tmp_path = gcs.download_to_temp(request.replay_object_name)
+        replay_data = parse_aoe2_replay(tmp_path)
+        players = []
+        for p in replay_data.get("summary", {}).get("players", []):
+            players.append(ReplayPlayer(
+                name=p.get("name", "Unknown"),
+                civilization=p.get("civilization"),
+                color=p.get("color"),
+            ))
+        return ReplayParseResponse(players=players)
+    except Exception as e:
+        logger.error(f"Failed to parse replay: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to parse replay: {str(e)}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
 # Background task to run the actual analysis
 async def run_analysis_background(analysis_id: str, request_data: dict):
     """
@@ -358,6 +503,13 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
     """
     try:
         logger.info(f"Starting background analysis for {analysis_id}")
+
+        # Helper to update stage in Firestore
+        async def update_stage(stage: str):
+            await firestore.update_analysis(analysis_id, {"stage": stage})
+
+        # Stage 1: Parsing demo/replay
+        await update_stage("parsing_demo")
 
         # Parse replay if provided
         replay_data = None
@@ -369,31 +521,28 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
 
         if replay_object_name:
             try:
-                replay_tmp_path = gcs.download_to_temp(replay_object_name)
+                replay_tmp_path = await gcs.download_to_temp_async(replay_object_name)
                 if game_type == "aoe2":
-                    replay_data = parse_aoe2_replay(replay_tmp_path)
+                    replay_data = await asyncio.to_thread(parse_aoe2_replay, replay_tmp_path)
                 elif game_type == "cs2":
-                    replay_data = parse_cs2_demo(replay_tmp_path)
+                    replay_data = await asyncio.to_thread(parse_cs2_demo, replay_tmp_path)
             except Exception as e:
                 logger.warning(f"Failed to parse replay: {e}")
             finally:
                 if replay_tmp_path and os.path.exists(replay_tmp_path):
                     os.unlink(replay_tmp_path)
 
-        # Run video analysis
-        if game_type == "cs2":
-            result = await run_analysis_pipeline(
-                video_object_name=video_object_name,
-                replay_data=replay_data,
-            )
-        else:
-            # Default to AoE2
-            result = await video_analyzer.analyze_video(
-                video_object_name=video_object_name,
-                replay_data=replay_data,
-                duration_seconds=0,
-                model=model,
-            )
+        # Pass POV player through replay data for CS2
+        if replay_data and request_data.get("pov_player"):
+            replay_data["pov_player"] = request_data["pov_player"]
+
+        # Run video analysis using unified pipeline (stages 2-5 handled inside)
+        result, pipeline_metadata, gemini_file_info = await run_analysis_pipeline(
+            video_object_name=video_object_name,
+            replay_data=replay_data,
+            game_type=game_type,
+            on_stage_change=update_stage,
+        )
 
         # Extract player names and game info from replay data
         players = []
@@ -415,6 +564,9 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
             else:
                 title = f"{game_type.upper()} Analysis"
 
+        # Stage: Generating thumbnail
+        await update_stage("generating_thumbnail")
+
         # Generate thumbnail from video at first tip timestamp
         thumbnail_url = None
         video_tmp_path = None
@@ -422,14 +574,18 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
         try:
             if result.tips:
                 logger.info("Generating thumbnail from video...")
-                video_tmp_path = gcs.download_to_temp(video_object_name)
+                video_tmp_path = await gcs.download_to_temp_async(video_object_name)
                 tips_for_thumbnail = [{"timestamp": tip.timestamp_display} for tip in result.tips]
-                thumbnail_tmp_path = thumbnail.extract_thumbnail_from_first_tip(
+                # Run ffmpeg thumbnail extraction in thread pool
+                thumbnail_tmp_path = await asyncio.to_thread(
+                    thumbnail.extract_thumbnail_from_first_tip,
                     video_tmp_path, tips_for_thumbnail
                 )
                 if thumbnail_tmp_path:
                     thumbnail_object_name = f"thumbnails/{analysis_id}.jpg"
-                    gcs.upload_file(thumbnail_tmp_path, thumbnail_object_name, "image/jpeg")
+                    await asyncio.to_thread(
+                        gcs.upload_file, thumbnail_tmp_path, thumbnail_object_name, "image/jpeg"
+                    )
                     thumbnail_url = thumbnail_object_name
                     logger.info(f"Thumbnail uploaded: {thumbnail_object_name}")
         except Exception as e:
@@ -441,9 +597,11 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
             if thumbnail_tmp_path and os.path.exists(thumbnail_tmp_path):
                 os.unlink(thumbnail_tmp_path)
 
-        # Generate TTS audio for tips
+        # Stage: Generating audio
         audio_object_names = []
-        if result.tips:
+        tts_enabled = os.getenv("TTS_ENABLED", "false").lower() == "true"
+        if tts_enabled and result.tips:
+            await update_stage("generating_audio")
             try:
                 from services.tts import generate_tips_audio
                 logger.info(f"Generating TTS audio for {len(result.tips)} tips...")
@@ -454,12 +612,16 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
                 logger.info(f"Generated {len(audio_object_names)} audio files")
             except Exception as e:
                 logger.warning(f"TTS generation failed (continuing without audio): {e}")
+        else:
+            logger.info("TTS generation disabled (set TTS_ENABLED=true to enable)")
                 # Continue without audio - not critical
 
         # Update Firestore with complete analysis
         updates = {
             "status": "complete",
+            "stage": None,  # Clear stage on completion
             "title": title,
+            "summary_text": pipeline_metadata.get("summary_text", ""),
             "players": players,
             "map": map_name,
             "duration": duration,
@@ -470,7 +632,19 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
             "model_used": result.model_used,
             "provider": result.provider,
             "audio_object_names": audio_object_names,
+            # Store Gemini video file info for chat (expires after 48h)
+            "gemini_video_uri": gemini_file_info.get("uri"),
+            "gemini_video_name": gemini_file_info.get("name"),
+            # Store sanitized replay data for chat context (remove empty keys that break Firestore)
+            "parsed_replay_data": sanitize_for_firestore(replay_data) if replay_data else None,
         }
+
+        # Add game-specific content
+        if game_type == "cs2" and result.cs2_content:
+            updates["cs2_content"] = result.cs2_content.model_dump()
+        elif game_type == "aoe2" and result.aoe2_content:
+            updates["aoe2_content"] = result.aoe2_content.model_dump()
+
         await firestore.update_analysis(analysis_id, updates)
         logger.info(f"Background analysis complete for {analysis_id}")
 
@@ -544,6 +718,7 @@ async def create_analysis(
         "model": request.model,
         "title": request.title,
         "creator_name": request.creator_name,
+        "pov_player": request.pov_player,
     }
     asyncio.create_task(run_analysis_background(analysis_id, request_data))
 
@@ -559,7 +734,8 @@ async def create_analysis(
 @app.get("/api/analysis/{analysis_id}/status", response_model=AnalysisStatusResponse)
 async def get_analysis_status(analysis_id: str) -> AnalysisStatusResponse:
     """Get the status of an analysis (for polling)."""
-    record = await firestore.get_analysis(analysis_id)
+    # Use non-blocking status fetch with field masks for fast response
+    record = await firestore.get_analysis_status(analysis_id)
 
     if not record:
         raise HTTPException(status_code=404, detail="Analysis not found")
@@ -567,6 +743,7 @@ async def get_analysis_status(analysis_id: str) -> AnalysisStatusResponse:
     return AnalysisStatusResponse(
         id=analysis_id,
         status=record.get("status", "complete"),  # Default to complete for old records
+        stage=record.get("stage"),
         error=record.get("error"),
     )
 
@@ -605,11 +782,20 @@ async def get_analysis(analysis_id: str) -> AnalysisDetailResponse:
     if record.get("game_summary"):
         game_summary = GameSummary(**record["game_summary"])
 
+    # Reconstruct game-specific content
+    cs2_content = None
+    aoe2_content = None
+    if record.get("cs2_content"):
+        cs2_content = CS2Content(**record["cs2_content"])
+    if record.get("aoe2_content"):
+        aoe2_content = AoE2Content(**record["aoe2_content"])
+
     return AnalysisDetailResponse(
         id=record["id"],
         status=record.get("status", "complete"),  # Default to complete for old records
         game_type=record["game_type"],
         title=record["title"],
+        summary_text=record.get("summary_text"),
         creator_name=record.get("creator_name"),
         players=record.get("players", []),
         map=record.get("map"),
@@ -625,6 +811,8 @@ async def get_analysis(analysis_id: str) -> AnalysisDetailResponse:
         error=record.get("error"),
         created_at=record["created_at"],
         audio_urls=audio_urls,
+        cs2_content=cs2_content,
+        aoe2_content=aoe2_content,
     )
 
 
@@ -658,6 +846,165 @@ async def list_analyses(
         analyses=items,
         total=len(items),
     )
+
+
+def build_chat_context(record: dict, replay_data: dict | None) -> str:
+    """Build comprehensive context for chat based on analysis data."""
+    game_type = record.get("game_type", "game")
+    tips = record.get("tips", [])
+
+    # Format all tips with full details
+    tips_text = "\n".join([
+        f"- {t.get('timestamp_display', '0:00')}: {t.get('tip', '')}\n"
+        f"  Category: {t.get('category', 'N/A')}\n"
+        f"  Reasoning: {t.get('reasoning', 'N/A')}"
+        for t in tips
+    ])
+
+    # Format round timeline (CS2)
+    rounds_text = ""
+    if record.get("cs2_content"):
+        rounds = record["cs2_content"].get("rounds_timeline", [])
+        rounds_text = "\n".join([
+            f"Round {r['round']}: {r.get('start_time', '?')}-{r.get('end_time', '?')} "
+            f"({'DIED at ' + r['death_time'] if r.get('death_time') else 'SURVIVED'})"
+            for r in rounds
+        ])
+
+    # Include key replay data if available
+    kills_text = ""
+    if replay_data and replay_data.get("kills"):
+        pov_player = (replay_data.get("pov_player") or "").lower()
+        if pov_player:
+            pov_kills = [k for k in replay_data["kills"]
+                         if (k.get("attacker") or "").lower() == pov_player]
+            pov_deaths = [k for k in replay_data["kills"]
+                          if (k.get("victim") or "").lower() == pov_player]
+            kills_text = f"POV Player kills: {len(pov_kills)}, Deaths: {len(pov_deaths)}"
+
+    return f"""You are an AI gaming coach analyzing a {game_type.upper()} gameplay video.
+
+## CRITICAL RULES
+1. You have access to the FULL VIDEO - you can analyze any moment the user asks about
+2. Base answers on what you observe in the video and the data below
+3. If asked about a specific timestamp, watch that moment in the video and describe what you see
+4. Keep responses concise (2-3 paragraphs max) and actionable
+
+## GAME DATA
+
+Map: {record.get('map', 'Unknown')}
+Duration: {record.get('duration', 'Unknown')}
+Players: {', '.join(record.get('players', []))}
+
+## ROUND TIMELINE
+{rounds_text if rounds_text else 'N/A'}
+
+## ALL COACHING TIPS FROM ANALYSIS
+{tips_text if tips_text else 'No tips available'}
+
+## GAMEPLAY STATS
+{kills_text if kills_text else 'N/A'}
+
+## YOUR ROLE
+- Answer questions about any moment in the video
+- Explain why certain plays were good or bad
+- Provide specific improvement advice
+- Reference exact timestamps when relevant
+"""
+
+
+@app.post("/api/analysis/{analysis_id}/chat", response_model=ChatResponse)
+async def chat_with_analysis(analysis_id: str, request: ChatRequest) -> ChatResponse:
+    """
+    Follow-up chat about an analysis.
+
+    Allows users to ask questions or discuss the analysis with the AI coach.
+    Uses Gemini's interaction chaining for context preservation.
+
+    If the Gemini video file is still available (within 48h of analysis),
+    the AI can reference specific moments in the video.
+
+    This is session-only (not persisted to Firestore).
+    """
+    # Get the analysis record for context
+    record = await firestore.get_analysis(analysis_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    # Get Gemini client
+    client = get_gemini_client()
+
+    # Get stored data for rich context
+    gemini_video_uri = record.get("gemini_video_uri")
+    replay_data = record.get("parsed_replay_data")
+
+    # Build comprehensive system instruction
+    system_instruction = build_chat_context(record, replay_data)
+
+    try:
+        # Use the same model as the analysis pipeline
+        model = os.getenv("TURTLE_MODEL", "gemini-3-pro-preview")
+
+        # Build input - include video if still available
+        # Interactions API requires explicit "type" fields
+        input_content = []
+
+        # Try to include video reference if URI exists
+        video_included = False
+        if gemini_video_uri:
+            try:
+                # Add video as a file reference with explicit type
+                input_content.append({
+                    "type": "video",
+                    "uri": gemini_video_uri,
+                    "mime_type": "video/mp4",
+                })
+                video_included = True
+                logger.info(f"Including Gemini video in chat: {gemini_video_uri}")
+            except Exception as e:
+                logger.warning(f"Failed to include video in chat (may be expired): {e}")
+
+        # Add user message with explicit type
+        input_content.append({"type": "text", "text": request.message})
+
+        # Use interaction chaining if we have a previous interaction
+        interaction_params = {
+            "model": model,
+            "input": input_content,
+            "system_instruction": system_instruction,
+        }
+
+        if request.previous_interaction_id:
+            interaction_params["previous_interaction_id"] = request.previous_interaction_id
+
+        # Run synchronous API call in thread pool to avoid blocking event loop
+        interaction = await asyncio.to_thread(
+            lambda: client.interactions.create(**interaction_params)
+        )
+
+        # Extract response text
+        response_text = ""
+        if hasattr(interaction, "outputs") and interaction.outputs:
+            last_output = interaction.outputs[-1]
+            if hasattr(last_output, "text"):
+                response_text = last_output.text
+            elif hasattr(last_output, "parts"):
+                for part in last_output.parts:
+                    if hasattr(part, "text"):
+                        response_text += part.text
+
+        # Add note if video wasn't available
+        if not video_included and gemini_video_uri:
+            response_text += "\n\n*(Note: Video reference expired. Responses are based on analysis data only.)*"
+
+        return ChatResponse(
+            response=response_text,
+            interaction_id=interaction.id,
+        )
+
+    except Exception as e:
+        logger.error(f"Chat failed for {analysis_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
 
 
 if __name__ == "__main__":

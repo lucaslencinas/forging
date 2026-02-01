@@ -11,10 +11,6 @@ const gamePlaceholders: Record<string, string> = {
   cs2: "/game-placeholders/cs2.svg",
 };
 
-const gameIcons: Record<string, string> = {
-  aoe2: "🏰",
-  cs2: "🎯",
-};
 
 export function CommunityCarousel() {
   const [analyses, setAnalyses] = useState<AnalysisListItem[]>([]);
@@ -41,7 +37,7 @@ export function CommunityCarousel() {
 
   if (loading) {
     return (
-      <section className="px-6 py-16">
+      <section className="px-6 py-16 bg-gradient-to-br from-zinc-900 via-zinc-900 to-blue-950/10">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-center text-2xl font-bold text-white sm:text-3xl">
             Community Analyses
@@ -59,7 +55,7 @@ export function CommunityCarousel() {
 
   if (analyses.length === 0) {
     return (
-      <section className="px-6 py-16">
+      <section className="px-6 py-16 bg-gradient-to-br from-zinc-900 via-zinc-900 to-blue-950/10">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-center text-2xl font-bold text-white sm:text-3xl">
             Community Analyses
@@ -81,7 +77,7 @@ export function CommunityCarousel() {
   }
 
   return (
-    <section className="px-6 py-16">
+    <section className="px-6 py-16 bg-gradient-to-br from-zinc-900 via-zinc-900 to-blue-950/10">
       <div className="mx-auto max-w-6xl">
         <h2 className="text-center text-2xl font-bold text-white sm:text-3xl">
           Community Analyses
@@ -95,7 +91,7 @@ export function CommunityCarousel() {
             <Link
               key={analysis.id}
               href={`/games/${analysis.id}`}
-              className="group rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 transition-all hover:border-zinc-600 hover:bg-zinc-800"
+              className="group rounded-xl border border-zinc-700/50 bg-gradient-to-br from-zinc-800/80 to-zinc-800/40 p-4 transition-all hover:border-zinc-600 hover:shadow-lg hover:shadow-purple-500/5"
             >
               {/* Thumbnail */}
               <div className="aspect-video rounded-lg bg-zinc-700/50 overflow-hidden relative">

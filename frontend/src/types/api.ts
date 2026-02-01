@@ -192,6 +192,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/demo/parse-players": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Parse Demo Players
+         * @description Parse a demo file from GCS and return player list.
+         */
+        post: operations["parse_demo_players_api_demo_parse_players_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/replay/parse-players": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Parse Replay Players
+         * @description Parse an AoE2 replay file from GCS and return player list.
+         */
+        post: operations["parse_replay_players_api_replay_parse_players_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/analysis": {
         parameters: {
             query?: never;
@@ -280,6 +320,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/analysis/{analysis_id}/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chat With Analysis
+         * @description Follow-up chat about an analysis.
+         *
+         *     Allows users to ask questions or discuss the analysis with the AI coach.
+         *     Uses Gemini's interaction chaining for context preservation.
+         *
+         *     If the Gemini video file is still available (within 48h of analysis),
+         *     the AI can reference specific moments in the video.
+         *
+         *     This is session-only (not persisted to Firestore).
+         */
+        post: operations["chat_with_analysis_api_analysis__analysis_id__chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -316,6 +384,8 @@ export interface components {
             game_type: string;
             /** Title */
             title: string;
+            /** Summary Text */
+            summary_text?: string | null;
             /** Creator Name */
             creator_name?: string | null;
             /**
@@ -357,6 +427,8 @@ export interface components {
              * @default []
              */
             audio_urls: string[];
+            cs2_content?: components["schemas"]["CS2Content"] | null;
+            aoe2_content?: components["schemas"]["AoE2Content"] | null;
         };
         /**
          * AnalysisListItem
@@ -428,8 +500,43 @@ export interface components {
             id: string;
             /** Status */
             status: string;
+            /** Stage */
+            stage?: string | null;
             /** Error */
             error?: string | null;
+        };
+        /**
+         * AoE2Content
+         * @description AoE2-specific analysis content.
+         */
+        AoE2Content: {
+            /**
+             * Players Timeline
+             * @default []
+             */
+            players_timeline: components["schemas"]["AoE2PlayerTimeline"][];
+            /** Pov Player Index */
+            pov_player_index?: number | null;
+        };
+        /**
+         * AoE2PlayerTimeline
+         * @description Age progression timeline for a single AoE2 player.
+         */
+        AoE2PlayerTimeline: {
+            /** Name */
+            name: string;
+            /** Civilization */
+            civilization: string;
+            /** Color */
+            color: string;
+            /** Winner */
+            winner: boolean;
+            /** Feudal Age Seconds */
+            feudal_age_seconds?: number | null;
+            /** Castle Age Seconds */
+            castle_age_seconds?: number | null;
+            /** Imperial Age Seconds */
+            imperial_age_seconds?: number | null;
         };
         /** Body_analyze_aoe2_api_analyze_aoe2_post */
         Body_analyze_aoe2_api_analyze_aoe2_post: {
@@ -463,6 +570,63 @@ export interface components {
              * @default aoe2
              */
             game_type: string;
+        };
+        /**
+         * CS2Content
+         * @description CS2-specific analysis content.
+         */
+        CS2Content: {
+            /**
+             * Rounds Timeline
+             * @default []
+             */
+            rounds_timeline: components["schemas"]["RoundTimeline"][];
+        };
+        /**
+         * ChatRequest
+         * @description Request for follow-up chat about the analysis.
+         */
+        ChatRequest: {
+            /** Message */
+            message: string;
+            /** Previous Interaction Id */
+            previous_interaction_id?: string | null;
+        };
+        /**
+         * ChatResponse
+         * @description Response from the chat endpoint.
+         */
+        ChatResponse: {
+            /** Response */
+            response: string;
+            /** Interaction Id */
+            interaction_id: string;
+        };
+        /**
+         * DemoParseRequest
+         * @description Request to parse demo file for player list.
+         */
+        DemoParseRequest: {
+            /** Demo Object Name */
+            demo_object_name: string;
+        };
+        /**
+         * DemoParseResponse
+         * @description Response with player list from demo.
+         */
+        DemoParseResponse: {
+            /** Players */
+            players: components["schemas"]["DemoPlayer"][];
+        };
+        /**
+         * DemoPlayer
+         * @description Player info from demo.
+         */
+        DemoPlayer: {
+            /** Name */
+            name: string;
+            /** Team */
+            team?: string | null;
         };
         /**
          * GameSummary
@@ -519,6 +683,34 @@ export interface components {
             imperial_age?: number | null;
         };
         /**
+         * ReplayParseRequest
+         * @description Request to parse replay file for player list.
+         */
+        ReplayParseRequest: {
+            /** Replay Object Name */
+            replay_object_name: string;
+        };
+        /**
+         * ReplayParseResponse
+         * @description Response with player list from replay.
+         */
+        ReplayParseResponse: {
+            /** Players */
+            players: components["schemas"]["ReplayPlayer"][];
+        };
+        /**
+         * ReplayPlayer
+         * @description Player info from AoE2 replay.
+         */
+        ReplayPlayer: {
+            /** Name */
+            name: string;
+            /** Civilization */
+            civilization?: string | null;
+            /** Color */
+            color?: string | null;
+        };
+        /**
          * ReplayUploadRequest
          * @description Request to generate a signed upload URL for replay/demo files.
          */
@@ -543,6 +735,28 @@ export interface components {
             bucket: string;
         };
         /**
+         * RoundTimeline
+         * @description Timeline entry for a round in CS2.
+         */
+        RoundTimeline: {
+            /** Round */
+            round: number;
+            /** Start Seconds */
+            start_seconds: number;
+            /** Start Time */
+            start_time: string;
+            /** End Seconds */
+            end_seconds: number;
+            /** End Time */
+            end_time: string;
+            /** Death Seconds */
+            death_seconds?: number | null;
+            /** Death Time */
+            death_time?: string | null;
+            /** Status */
+            status: string;
+        };
+        /**
          * SavedAnalysisRequest
          * @description Request to create and save an analysis.
          */
@@ -564,6 +778,8 @@ export interface components {
              * @default true
              */
             is_public: boolean;
+            /** Pov Player */
+            pov_player?: string | null;
         };
         /**
          * TimestampedTip
@@ -578,6 +794,10 @@ export interface components {
             tip: string;
             /** Category */
             category: string;
+            /** Reasoning */
+            reasoning?: string | null;
+            /** Confidence */
+            confidence?: number | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -606,6 +826,8 @@ export interface components {
             provider: string;
             /** Error */
             error?: string | null;
+            cs2_content?: components["schemas"]["CS2Content"] | null;
+            aoe2_content?: components["schemas"]["AoE2Content"] | null;
         };
         /**
          * VideoDownloadResponse
@@ -910,6 +1132,72 @@ export interface operations {
             };
         };
     };
+    parse_demo_players_api_demo_parse_players_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DemoParseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoParseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    parse_replay_players_api_replay_parse_players_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplayParseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayParseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_analysis_api_analysis_post: {
         parameters: {
             query?: never;
@@ -1024,6 +1312,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AnalysisListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chat_with_analysis_api_analysis__analysis_id__chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                analysis_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatResponse"];
                 };
             };
             /** @description Validation Error */

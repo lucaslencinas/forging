@@ -1,48 +1,42 @@
 """
-Analyst Agent - Combined Multi-Angle Analysis
+CS2 Observer Agent - Multi-Angle Analysis.
 
-Single agent that combines all three analysis perspectives:
+Analyzes CS2 gameplay video from three perspectives:
 1. Exploitable Patterns (from opponent's POV)
 2. Rank-Up Habits (what's holding you back)
-3. Missed Adaptations (information → reaction)
+3. Missed Adaptations (information -> reaction)
 
-Generates up to 20 tips ordered by timestamp.
+Generates 10-20 tips ordered by timestamp.
 """
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
-from .base import BaseAgent
-from .contracts import (
-    AnalystOutput,
-    AnalystTip,
+from services.agents.base import BaseAgent
+from services.pipelines.cs2.contracts import (
+    CS2ObserverOutput,
+    CS2ObserverTip,
     Timestamp,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class ObserverAgent(BaseAgent):
+class CS2ObserverAgent(BaseAgent):
     """
-    Observer: Combined multi-angle gameplay analysis.
+    CS2 Observer: Round-based multi-angle gameplay analysis.
 
     Uses video: Yes
     Thinking level: HIGH (comprehensive analysis)
     """
 
-    name = "observer"
+    name = "cs2_observer"
     uses_video = True
     thinking_level = "high"
     include_thoughts = False
 
     def get_system_prompt(self) -> str:
-        """Get the system prompt based on game type."""
-        if self.game_type == "cs2":
-            return self._get_cs2_system_prompt()
-        else:
-            return self._get_aoe2_system_prompt()
-
-    def _get_cs2_system_prompt(self) -> str:
+        """Get the CS2-specific system prompt."""
         return """You are a CS2 gameplay analyst. Watch this video and provide comprehensive feedback.
 
 ## VIDEO HUD GUIDE
@@ -101,7 +95,7 @@ What habits cost them rounds?
 - Movement/positioning habits
 - Economy mistakes
 
-### Angle 3: Information → Reaction
+### Angle 3: Information -> Reaction
 Did they react to what they saw/heard?
 - Sound cues ignored (footsteps, utility)
 - Visual info not acted on
@@ -109,12 +103,8 @@ Did they react to what they saw/heard?
 
 ## OUTPUT FORMAT
 
-Return as many tips as you find (aim for 10-20), ordered by timestamp:
+Return at least 1 tip per round (ideally 2-3 per round), ordered by timestamp:
 {
-  "rounds_timeline": [
-    {"round": 1, "start_seconds": 5, "death_seconds": 32, "end_seconds": 45},
-    {"round": 2, "start_seconds": 50, "death_seconds": null, "end_seconds": 110}
-  ],
   "tips": [
     {
       "id": "tip_001",
@@ -187,135 +177,67 @@ Use these categories:
 - important: Significant improvement opportunity
 - minor: Nice to fix but not urgent
 
+## TIP COUNT REQUIREMENTS - CRITICAL
+
+You MUST generate a substantial number of tips. The player is paying for coaching feedback.
+
+**MINIMUM REQUIREMENTS:**
+- For a 7-minute video (4-5 rounds): Generate 8-15 tips
+- For a 3-minute video (2-3 rounds): Generate 5-8 tips
+- For a 15-minute video (10+ rounds): Generate 15-25 tips
+
+**GUIDELINE: Approximately 2 tips per minute of gameplay footage.**
+
+If you're about to return fewer than 8 tips for a multi-round video, GO BACK and look harder.
+
+For EACH round, analyze:
+1. Positioning mistakes (where they stood, peeked from)
+2. Crosshair placement issues (head level, pre-aim)
+3. Timing/pacing problems (too fast, too slow, predictable)
+4. Utility usage (or lack thereof - smokes, flashes, mollies)
+5. Information ignored (footsteps, callouts, visual cues)
+6. Economy decisions (force buys, eco rounds, weapon choices)
+7. Movement errors (running while shooting, not counter-strafing)
+8. Trade potential (could teammate have traded, did they set up trades)
+9. Reload habits (reloading at bad times)
+10. Angle clearing (angles skipped, predictable clearing pattern)
+
+**Every round has MULTIPLE learning moments. Find them all.**
+
 ## BEFORE YOU RESPOND - MANDATORY CHECKLIST
 
-For EACH tip you include:
+**TIP COUNT CHECK:**
+[ ] Have I generated at least 8 tips? If not, go back and analyze more thoroughly
+[ ] Did I find at least 1-2 tips per round? If not, look harder at each round
+
+**For EACH tip you include:**
 [ ] Find which round this timestamp falls into
 [ ] Check: Is timestamp < death_seconds for that round? (If null, full round is valid)
 [ ] The tip is about the POV player's OWN gameplay, not teammates
 [ ] You can point to a SPECIFIC moment in the video
 [ ] You are 100% certain you observed this - no guessing
 
-**It's better to return 10 verified tips than 20 uncertain ones.**
-
-Return ONLY valid JSON."""
-
-    def _get_aoe2_system_prompt(self) -> str:
-        return """You are an AoE2 gameplay analyst. Watch this video and provide comprehensive feedback.
-
-## CRITICAL: PLAYER IDENTIFICATION
-
-**BEFORE analyzing anything, you MUST identify which player's POV the video shows:**
-
-The video shows one player's perspective. To identify them:
-1. Look at the minimap orientation - your base is typically at the bottom
-2. Note the color of YOUR Town Center and villagers in the video
-3. Match that color to the player list in the REPLAY DATA section
-4. The HUD shows YOUR resources and population
-5. Actions you see being performed belong to the POV player
-
-## ANALYSIS ANGLES
-
-Analyze from THREE perspectives:
-
-### Angle 1: Exploitable Patterns
-What would an opponent exploit about this player?
-- Predictable build order variations
-- Wall gaps or defensive weaknesses
-- Resource gathering patterns
-- Army composition predictability
-
-### Angle 2: Rank-Up Habits
-What habits cost them games?
-- Idle TC time
-- Resource floating
-- Late age-up timings
-- Poor unit control
-
-### Angle 3: Scouting → Reaction
-Did they react to what they scouted?
-- Opponent's strategy visible but ignored
-- Counter units not built
-- Forward buildings not addressed
-
-## OUTPUT FORMAT
-
-Return as many tips as you find (aim for 10-20), ordered by timestamp:
-{
-  "tips": [
-    {
-      "id": "tip_001",
-      "timestamp": {"video_seconds": 180, "display": "3:00"},
-      "category": "rank_up_habit",
-      "severity": "critical",
-      "observation": "Town Center idle for 30+ seconds multiple times in Dark Age",
-      "why_it_matters": "You're 3-4 villagers behind where you should be by Feudal Age",
-      "fix": "Queue 2-3 villagers at a time, check TC every time you build something",
-      "reasoning": "Observed TC idle at 1:30-2:00, 3:45-4:20, and 5:10-5:45"
-    },
-    {
-      "id": "tip_002",
-      "timestamp": {"video_seconds": 300, "display": "5:00"},
-      "category": "exploitable_pattern",
-      "severity": "important",
-      "observation": "Wall placement leaves gold vulnerable to archer harassment",
-      "why_it_matters": "Enemy archers can kill villagers on gold from outside the wall",
-      "fix": "Wall further out or use houses to protect the gold line",
-      "reasoning": "Wall at 5:00 is only 2 tiles from gold mining camp"
-    },
-    {
-      "id": "tip_003",
-      "timestamp": {"video_seconds": 600, "display": "10:00"},
-      "category": "missed_adaptation",
-      "severity": "critical",
-      "observation": "Scouted 2 archery ranges but continued pure knight production",
-      "why_it_matters": "Knights get destroyed by mass archers without support",
-      "fix": "Add skirmishers or scout cavalry to counter archers",
-      "reasoning": "Scout passed 2 archery ranges at 9:50, player queued more knights at 10:10"
-    }
-  ]
-}
-
-## CATEGORIES
-
-Use these categories:
-- exploitable_pattern: Something an opponent could exploit
-- rank_up_habit: A recurring habit holding the player back
-- missed_adaptation: Failed to react to scouted information
-- economy: Economy/resource management issue
-- military: Army composition or control issue
-- scouting: Scouting execution issue
-- macro: General macro issue (TC, production, etc.)
-
-## SEVERITY LEVELS
-
-- critical: Game-changing issue that must be fixed first
-- important: Significant improvement opportunity
-- minor: Nice to fix but not urgent
-
-## IMPORTANT NOTES
-
-- Use VIDEO TIME for timestamps, not game time
-- Order tips by timestamp (chronological order)
-- Focus on patterns (recurring issues), not one-time mistakes
-- Include your reasoning for EACH tip
-- Be specific about what you saw
-
-**It's better to return 10 verified tips than 20 uncertain ones.**
+**Quality over quantity, but quantity matters too.** The player deserves thorough feedback.
+Aim for 10-15 verified tips. 3 tips is NOT enough for a multi-round video.
 
 Return ONLY valid JSON."""
 
     def build_prompt(self, input_data: dict) -> str:
-        """Build the analyst prompt."""
+        """Build the observer prompt."""
         logger.info(f"[{self.name}] Building prompt for multi-angle analysis")
 
         # Format replay data for context
         replay_info = self.format_replay_data_for_prompt()
 
+        # Build alive ranges from demo data (deterministic)
+        alive_ranges_text = self._build_alive_ranges_text()
+
         prompt = f"""
 ## REPLAY DATA (for context)
 
 {replay_info}
+
+{alive_ranges_text}
 
 ## TASK
 
@@ -323,25 +245,28 @@ Watch this gameplay video and provide comprehensive feedback from THREE angles:
 
 1. **Exploitable Patterns**: What would an opponent exploit?
 2. **Rank-Up Habits**: What recurring habits are holding this player back?
-3. **Information → Reaction**: Did they react to what they saw/heard/scouted?
+3. **Information -> Reaction**: Did they react to what they saw/heard/scouted?
 
-Generate as many tips as you find (aim for 10-20), ordered by timestamp.
-Each tip should be specific, actionable, and based on what you observe in the video.
+**CRITICAL: Generate 8-15 tips minimum.** The player needs detailed feedback to improve.
+Aim for approximately 2 tips per minute of video. A 7-minute video should have 10-15 tips.
+Analyze EVERY round thoroughly - each round typically has 2-3 improvement opportunities.
+
+Order tips by timestamp. Each tip should be specific, actionable, and based on what you observe in the video.
 
 Return your analysis as JSON.
 """
         logger.debug(f"[{self.name}] Prompt length: {len(prompt)} chars")
         return prompt
 
-    def parse_response(self, response_text: str, input_data: dict) -> AnalystOutput:
-        """Parse the analyst response."""
-        logger.info(f"[{self.name}] Parsing analyst response...")
+    def parse_response(self, response_text: str, input_data: dict) -> CS2ObserverOutput:
+        """Parse the observer response."""
+        logger.info(f"[{self.name}] Parsing observer response...")
 
         data = self._extract_json(response_text)
 
         if not data:
             logger.warning(f"[{self.name}] Could not parse JSON, returning empty output")
-            return AnalystOutput(tips=[])
+            return CS2ObserverOutput(tips=[], rounds_timeline=[])
 
         # Parse tips
         tips = []
@@ -356,7 +281,7 @@ Return your analysis as JSON.
                     )
 
                 tips.append(
-                    AnalystTip(
+                    CS2ObserverTip(
                         id=tip.get("id", f"tip_{len(tips)+1:03d}"),
                         timestamp=timestamp,
                         category=tip.get("category", "general"),
@@ -368,18 +293,56 @@ Return your analysis as JSON.
                         recurring_timestamps=tip.get("recurring_timestamps"),
                     )
                 )
-                logger.info(
-                    f"[{self.name}] Tip: {tip.get('observation', '')[:100]}..."
-                )
+                logger.info(f"[{self.name}] Tip: {tip.get('observation', '')[:100]}...")
             except Exception as e:
                 logger.warning(f"[{self.name}] Error parsing tip: {e}")
 
         # Sort tips by timestamp
         tips.sort(key=lambda t: t.timestamp.video_seconds if t.timestamp else 0)
 
-        # Extract rounds timeline if present
-        rounds_timeline = data.get("rounds_timeline") or data.get("rounds")
+        # Note: rounds_timeline is now built from demo data (deterministic),
+        # not from LLM output. See build_rounds_timeline_from_demo() in round_detector.py
 
         logger.info(f"[{self.name}] Found {len(tips)} tips")
 
-        return AnalystOutput(tips=tips, rounds_timeline=rounds_timeline)
+        return CS2ObserverOutput(tips=tips, rounds_timeline=[])
+
+    def _build_alive_ranges_text(self) -> str:
+        """Build text describing valid analysis windows (when POV player is alive)."""
+        # Get demo-built rounds timeline (set by pipeline)
+        demo_rounds_timeline = self.replay_data.get("rounds_timeline_demo", [])
+
+        if not demo_rounds_timeline:
+            return ""
+
+        lines = [
+            "## VALID ANALYSIS WINDOWS - CRITICAL",
+            "",
+            "The POV player is ONLY visible during these time ranges.",
+            "After death, the camera switches to spectating teammates - DO NOT analyze that footage.",
+            "",
+        ]
+
+        for r in demo_rounds_timeline:
+            round_num = r.get("round", 0)
+            start_time = r.get("start_time", "0:00")
+            end_time = r.get("end_time", "0:00")
+            death_time = r.get("death_time")
+            death_seconds = r.get("death_seconds")
+
+            if death_time:
+                # Player died - valid window ends at death
+                lines.append(
+                    f"Round {round_num}: {start_time} - {death_time} (DIED - stop analyzing after {death_time})"
+                )
+            else:
+                # Player survived - valid window is full round
+                lines.append(f"Round {round_num}: {start_time} - {end_time} (SURVIVED)")
+
+        lines.extend([
+            "",
+            "⚠️ MANDATORY: Check EVERY tip timestamp against these windows.",
+            "Tips after death time will be REJECTED by the validator.",
+        ])
+
+        return "\n".join(lines)
