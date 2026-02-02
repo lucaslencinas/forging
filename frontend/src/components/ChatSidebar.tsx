@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  followUpQuestions?: string[];
 }
 
 interface ChatSidebarProps {
   analysisId: string;
   gameType: string;
+  onWidthChange?: (width: number) => void;
 }
 
 // Pre-made question chips by game type
@@ -26,22 +29,65 @@ const QUESTION_CHIPS: Record<string, string[]> = {
   ],
 };
 
-export function ChatSidebar({ analysisId, gameType }: ChatSidebarProps) {
+const MIN_WIDTH = 280;
+const MAX_WIDTH = 600;
+const DEFAULT_WIDTH = 384; // 96 * 4 = w-96
+
+export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebarProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [interactionId, setInteractionId] = useState<string | null>(null);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [usedChips, setUsedChips] = useState<Set<string>>(new Set());
+  const [width, setWidth] = useState(DEFAULT_WIDTH);
+  const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
 
   // Get chips for this game type, fallback to cs2
-  const chips = QUESTION_CHIPS[gameType] || QUESTION_CHIPS.cs2;
+  const allChips = QUESTION_CHIPS[gameType] || QUESTION_CHIPS.cs2;
+  // Filter out used chips
+  const availableChips = allChips.filter((chip) => !usedChips.has(chip));
+
+  // Get follow-up questions from the last assistant message
+  const lastMessage = messages[messages.length - 1];
+  const followUpQuestions = lastMessage?.role === "assistant" ? lastMessage.followUpQuestions : undefined;
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Handle drag resize
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = window.innerWidth - e.clientX;
+      const clampedWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth));
+      setWidth(clampedWidth);
+      onWidthChange?.(clampedWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, onWidthChange]);
 
   const sendMessage = async (messageText?: string) => {
     const userMessage = (messageText || input).trim();
@@ -49,6 +95,11 @@ export function ChatSidebar({ analysisId, gameType }: ChatSidebarProps) {
 
     setInput("");
     setError(null);
+
+    // Track used chips
+    if (allChips.includes(userMessage)) {
+      setUsedChips((prev) => new Set([...prev, userMessage]));
+    }
 
     // Add user message to chat
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
@@ -73,8 +124,12 @@ export function ChatSidebar({ analysisId, gameType }: ChatSidebarProps) {
 
       const data = await response.json();
 
-      // Add assistant response
-      setMessages((prev) => [...prev, { role: "assistant", content: data.response }]);
+      // Add assistant response with follow-up questions if available
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: data.response,
+        followUpQuestions: data.follow_up_questions,
+      }]);
       setInteractionId(data.interaction_id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");
@@ -176,7 +231,13 @@ export function ChatSidebar({ analysisId, gameType }: ChatSidebarProps) {
                   : "bg-zinc-800 text-zinc-200 border border-zinc-700"
               }`}
             >
-              {msg.content}
+              {msg.role === "assistant" ? (
+                <div className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-strong:text-orange-300 prose-code:bg-zinc-700 prose-code:px-1 prose-code:rounded">
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                </div>
+              ) : (
+                msg.content
+              )}
             </div>
           </div>
         ))}
@@ -203,13 +264,25 @@ export function ChatSidebar({ analysisId, gameType }: ChatSidebarProps) {
         </div>
       )}
 
-      {/* Question chips */}
-      {messages.length === 0 && (
+      {/* Question chips - show remaining chips or follow-up questions */}
+      {(availableChips.length > 0 || (followUpQuestions && followUpQuestions.length > 0)) && !isLoading && (
         <div className="px-4 pb-2">
           <div className="flex flex-wrap gap-2">
-            {chips.map((chip, i) => (
+            {/* Show follow-up questions from the LLM first */}
+            {followUpQuestions?.map((question, i) => (
               <button
-                key={i}
+                key={`follow-${i}`}
+                onClick={() => handleChipClick(question)}
+                disabled={isLoading}
+                className="px-3 py-1.5 text-xs rounded-full bg-orange-500/10 text-orange-300 border border-orange-500/30 hover:border-orange-500/50 hover:bg-orange-500/20 transition-colors disabled:opacity-50"
+              >
+                {question}
+              </button>
+            ))}
+            {/* Show remaining preset chips */}
+            {availableChips.map((chip, i) => (
+              <button
+                key={`chip-${i}`}
                 onClick={() => handleChipClick(chip)}
                 disabled={isLoading}
                 className="px-3 py-1.5 text-xs rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700 hover:border-orange-500/50 hover:text-orange-400 transition-colors disabled:opacity-50"
@@ -249,10 +322,26 @@ export function ChatSidebar({ analysisId, gameType }: ChatSidebarProps) {
 
   return (
     <>
-      {/* Desktop sidebar - always visible */}
-      <div className="hidden lg:block w-80 xl:w-96 h-full fixed right-0 top-0 pt-[73px]">
+      {/* Desktop sidebar - always visible with draggable divider */}
+      <div
+        ref={sidebarRef}
+        className="hidden lg:block h-full fixed right-0 top-0 pt-[73px]"
+        style={{ width: `${width}px` }}
+      >
+        {/* Draggable divider */}
+        <div
+          onMouseDown={handleMouseDown}
+          className={`absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize group z-10 ${
+            isDragging ? "bg-orange-500" : "bg-transparent hover:bg-orange-500/50"
+          }`}
+        >
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-16 rounded-full bg-zinc-600 group-hover:bg-orange-400 transition-colors" />
+        </div>
         <ChatContent />
       </div>
+
+      {/* Drag overlay to prevent text selection while dragging */}
+      {isDragging && <div className="fixed inset-0 z-50 cursor-ew-resize" />}
 
       {/* Mobile toggle button */}
       <MobileToggle />

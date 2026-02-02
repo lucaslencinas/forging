@@ -114,6 +114,8 @@ function AIThinkingPlaceholder({ stage }: { stage: string | null }) {
   );
 }
 
+const DEFAULT_CHAT_WIDTH = 384;
+
 export default function SharedGamePage() {
   const params = useParams();
   const id = params.id as string;
@@ -124,6 +126,7 @@ export default function SharedGamePage() {
   const [stage, setStage] = useState<string | null>(null);
   // Stable video URL - only set once to prevent video reloading during polling
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
   const startTimeRef = useRef<number>(Date.now());
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -327,7 +330,7 @@ export default function SharedGamePage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
       <header className="border-b border-zinc-800 px-6 py-4 fixed top-0 left-0 right-0 z-30 bg-zinc-900/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl lg:pr-80 xl:pr-96 items-center justify-between">
+        <div className="mx-auto flex max-w-7xl items-center justify-between lg:transition-all" style={{ paddingRight: !isProcessing ? `${chatWidth}px` : undefined }}>
           <Link href="/" className="text-2xl font-bold tracking-tight">
             <span className="text-orange-500">Forging</span>
           </Link>
@@ -335,8 +338,8 @@ export default function SharedGamePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-12 pt-24 lg:pr-80 xl:pr-96">
-        <div className="space-y-6">
+      <main className="mx-auto max-w-7xl px-6 py-12 pt-24">
+        <div className="space-y-6 lg:transition-all" style={{ marginRight: !isProcessing ? `${chatWidth}px` : undefined }}>
           {/* Title and Summary */}
           {analysis.title && (
             <div>
@@ -439,13 +442,13 @@ export default function SharedGamePage() {
         </div>
       </main>
 
-      <footer className="border-t border-zinc-800 px-6 py-8 text-center text-sm text-zinc-500 lg:pr-80 xl:pr-96">
+      <footer className="border-t border-zinc-800 px-6 py-8 text-center text-sm text-zinc-500 lg:transition-all" style={{ paddingRight: !isProcessing ? `${chatWidth}px` : undefined }}>
         <p>Built for the Gemini 3 Hackathon</p>
       </footer>
 
       {/* Chat Sidebar - always visible on desktop, collapsible on mobile */}
       {!isProcessing && analysis && (
-        <ChatSidebar analysisId={id} gameType={analysis.game_type} />
+        <ChatSidebar analysisId={id} gameType={analysis.game_type} onWidthChange={setChatWidth} />
       )}
     </div>
   );

@@ -910,6 +910,17 @@ Players: {', '.join(record.get('players', []))}
 - Explain why certain plays were good or bad
 - Provide specific improvement advice
 - Reference exact timestamps when relevant
+- Use markdown formatting for better readability (headers, bold, lists)
+
+## RESPONSE FORMAT
+After your main response, always suggest 2-3 relevant follow-up questions the user might want to ask.
+Format them at the end of your response like this:
+
+---
+**Follow-up questions:**
+- [First follow-up question]
+- [Second follow-up question]
+- [Third follow-up question]
 """
 
 
@@ -997,9 +1008,23 @@ async def chat_with_analysis(analysis_id: str, request: ChatRequest) -> ChatResp
         if not video_included and gemini_video_uri:
             response_text += "\n\n*(Note: Video reference expired. Responses are based on analysis data only.)*"
 
+        # Parse out follow-up questions if present
+        follow_up_questions = []
+        if "**Follow-up questions:**" in response_text:
+            parts = response_text.split("**Follow-up questions:**")
+            main_response = parts[0].rstrip().rstrip("-").rstrip()
+            if len(parts) > 1:
+                questions_section = parts[1]
+                # Parse markdown list items
+                import re
+                questions = re.findall(r"[-*]\s*(.+?)(?:\n|$)", questions_section)
+                follow_up_questions = [q.strip() for q in questions if q.strip()][:3]
+            response_text = main_response
+
         return ChatResponse(
             response=response_text,
             interaction_id=interaction.id,
+            follow_up_questions=follow_up_questions,
         )
 
     except Exception as e:

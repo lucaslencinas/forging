@@ -301,3 +301,4 @@ class ChatResponse(BaseModel):
     """Response from the chat endpoint."""
     response: str
     interaction_id: str  # Can be used for follow-up messages
+    follow_up_questions: list[str] = []  # Suggested follow-up questions
