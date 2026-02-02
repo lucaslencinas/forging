@@ -212,6 +212,18 @@ forging/
 └── deploy/                # GCS CORS config
 ```
 
+## Research & References
+
+### Multi-Agent System Design
+
+This project's architecture is informed by recent research on scaling agent systems:
+
+- **[Towards a science of scaling agent systems: When and why agent systems work](https://research.google/blog/towards-a-science-of-scaling-agent-systems-when-and-why-agent-systems-work/)** (Google Research, 2025)
+
+  Key insight: Multi-agent AI systems don't universally improve performance. Their effectiveness depends on task characteristics and coordination architecture. For parallelizable tasks (like analyzing different aspects of gameplay), centralized coordination can improve performance by up to 80%. However, independent agents can amplify errors up to 17x without proper orchestration.
+
+*More references to be added.*
+
 ## License
 
 MIT
