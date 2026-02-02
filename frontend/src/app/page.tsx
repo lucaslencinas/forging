@@ -12,7 +12,7 @@ import {
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-900 to-purple-950/20 text-white">
-      <header className="border-b border-zinc-800/50 px-6 py-4 backdrop-blur-sm bg-zinc-900/80">
+      <header className="sticky top-0 z-50 border-b border-zinc-800/50 px-6 py-4 backdrop-blur-md bg-zinc-900/90">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
             <span className="text-2xl font-bold tracking-tight text-orange-500">Forging</span>
