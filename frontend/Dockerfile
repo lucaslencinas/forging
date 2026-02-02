@@ -3,8 +3,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install pnpm (pinned version to match lockfile v6.0)
-RUN npm install -g pnpm@8.15.7
+# Install pnpm (pinned version to match lockfile v9.0)
+RUN npm install -g pnpm@10.22.0
 
 # Copy package files
 COPY package.json pnpm-lock.yaml* ./
