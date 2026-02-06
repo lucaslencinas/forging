@@ -110,7 +110,7 @@ class RoundTimeline(BaseModel):
     end_time: str  # "1:32"
     death_seconds: float | None = None
     death_time: str | None = None
-    status: str  # "SURVIVED" or "DIED at X:XX"
+    status: str  # "win", "loss", or "unknown"
 
 
 class CS2Content(BaseModel):
@@ -272,6 +272,7 @@ class AnalysisDetailResponse(BaseModel):
     summary_text: str | None = None  # 100-300 char AI-generated summary for TTS
     creator_name: str | None = None
     players: list[str] = []
+    pov_player: str | None = None  # Username of the POV player
     map: str | None = None
     duration: str | None = None
     video_signed_url: str

@@ -774,6 +774,17 @@ async def get_analysis(analysis_id: str) -> AnalysisDetailResponse:
             logger.warning(f"Failed to generate audio URL for {audio_object}: {e}")
             audio_urls.append("")  # Keep placeholder for indexing
 
+    # Generate URL for thumbnail
+    thumbnail_url = record.get("thumbnail_url")
+    if thumbnail_url and thumbnail_url.startswith("thumbnails/"):
+        try:
+            thumbnail_url_data = gcs.generate_download_url(thumbnail_url)
+            thumbnail_url = thumbnail_url_data["signed_url"]
+        except Exception as e:
+            logger.warning(f"Failed to generate signed thumbnail URL, using public URL: {e}")
+            # Fall back to public URL if signed URL generation fails
+            thumbnail_url = f"https://storage.googleapis.com/forging-uploads/{thumbnail_url}"
+
     # Convert tips back to TimestampedTip objects
     tips = [TimestampedTip(**tip) for tip in record.get("tips", [])]
 
@@ -798,11 +809,12 @@ async def get_analysis(analysis_id: str) -> AnalysisDetailResponse:
         summary_text=record.get("summary_text"),
         creator_name=record.get("creator_name"),
         players=record.get("players", []),
+        pov_player=record.get("pov_player"),
         map=record.get("map"),
         duration=record.get("duration"),
         video_signed_url=video_signed_url,
         replay_object_name=record.get("replay_object_name"),
-        thumbnail_url=record.get("thumbnail_url"),
+        thumbnail_url=thumbnail_url,
         tips=tips,
         tips_count=record.get("tips_count", len(tips)),
         game_summary=game_summary,
@@ -838,8 +850,9 @@ async def list_analyses(
                 url_data = gcs.generate_download_url(thumbnail_url)
                 a["thumbnail_url"] = url_data["signed_url"]
             except Exception as e:
-                logger.warning(f"Failed to generate thumbnail URL for {a.get('id')}: {e}")
-                a["thumbnail_url"] = None
+                logger.warning(f"Failed to generate signed thumbnail URL for {a.get('id')}, using public URL: {e}")
+                # Fall back to public URL if signed URL generation fails
+                a["thumbnail_url"] = f"https://storage.googleapis.com/forging-uploads/{thumbnail_url}"
         items.append(AnalysisListItem(**a))
 
     return AnalysisListResponse(
@@ -954,7 +967,7 @@ async def chat_with_analysis(analysis_id: str, request: ChatRequest) -> ChatResp
 
     try:
         # Use the same model as the analysis pipeline
-        model = os.getenv("TURTLE_MODEL", "gemini-3-pro-preview")
+        model = os.getenv("GEMINI_MODEL", "gemini-3-pro-preview")
 
         # Build input - include video if still available
         # Interactions API requires explicit "type" fields

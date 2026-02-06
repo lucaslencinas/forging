@@ -70,7 +70,7 @@ Examples:
 
     try:
         # Use a fast model for this quick detection
-        model = os.getenv("TURTLE_FAST_MODEL", "gemini-2.0-flash")
+        model = os.getenv("GEMINI_FAST_MODEL", "gemini-3-flash-preview")
 
         # Build content list with proper types for models.generate_content API
         input_content = [
@@ -224,18 +224,19 @@ def build_rounds_timeline_from_demo(
     Build rounds timeline from demo data (deterministic).
 
     Uses demo tick data and tickrate to calculate video timestamps.
-    Includes death timestamps for POV player per round.
+    Includes death timestamps and win/loss status for POV player per round.
 
     Args:
         demo_data: Demo data (filtered or full)
-        pov_player: Name of the POV player (for death detection)
+        pov_player: Name of the POV player (for death detection and win/loss)
 
     Returns:
-        List of round timeline dicts with start/end/death timestamps
+        List of round timeline dicts with start/end/death timestamps and win/loss status
     """
     summary = demo_data.get("summary", {})
     rounds = demo_data.get("rounds", [])
     kills = demo_data.get("kills", [])
+    players = demo_data.get("players", [])
     tickrate = summary.get("tickrate", 64)
 
     if not rounds:
@@ -256,6 +257,17 @@ def build_rounds_timeline_from_demo(
     # Get POV player name from demo data if not provided
     if pov_player is None:
         pov_player = demo_data.get("pov_player")
+
+    # Find POV player's starting side (CT or T)
+    pov_starting_side = None
+    if pov_player:
+        pov_lower = pov_player.lower()
+        for player in players:
+            if player.get("name", "").lower() == pov_lower:
+                pov_starting_side = player.get("starting_side")
+                break
+
+    logger.info(f"[build_rounds_timeline] POV player {pov_player} starting side: {pov_starting_side}")
 
     # Build death lookup for POV player (round_num -> death_tick)
     death_by_round: dict[int, int] = {}
@@ -280,6 +292,7 @@ def build_rounds_timeline_from_demo(
         round_num = rnd.get("round_num", 0)
         start_tick = rnd.get("start_tick") or 0
         end_tick = rnd.get("end_tick") or 0
+        round_winner = rnd.get("winner")  # "CT" or "T"
 
         # Calculate video timestamps (seconds from video start)
         start_seconds = max(0.0, (start_tick - video_start_tick) / tickrate)
@@ -294,11 +307,27 @@ def build_rounds_timeline_from_demo(
         if death_tick:
             death_seconds = max(0.0, (death_tick - video_start_tick) / tickrate)
             death_time = f"{int(death_seconds // 60)}:{int(death_seconds % 60):02d}"
-            status = f"DIED at {death_time}"
         else:
             death_seconds = None
             death_time = None
-            status = "SURVIVED"
+
+        # Determine win/loss status based on round winner and POV player's side
+        # In CS2, sides swap at halftime (typically after round 12)
+        # First half: rounds 1-12, Second half: rounds 13+
+        status = "unknown"
+        if pov_starting_side and round_winner:
+            # Determine POV player's side for this round (account for side swap)
+            if round_num <= 12:
+                pov_side_this_round = pov_starting_side
+            else:
+                # After halftime, sides are swapped
+                pov_side_this_round = "T" if pov_starting_side == "CT" else "CT"
+
+            # Compare round winner to POV player's side
+            if round_winner == pov_side_this_round:
+                status = "win"
+            else:
+                status = "loss"
 
         timeline.append({
             "round": round_num,
