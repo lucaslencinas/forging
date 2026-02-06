@@ -10,7 +10,11 @@ Usage:
     python batch_create_analyses.py                     # Process all
     python batch_create_analyses.py --game-type cs2     # CS2 only
     python batch_create_analyses.py --game-type aoe2    # AoE2 only
-    python batch_create_analyses.py --delay 60          # Custom delay between analyses
+    python batch_create_analyses.py --delay 90          # Custom delay between analyses
+    python batch_create_analyses.py --no-tts            # Skip TTS generation
+
+Environment variables:
+    TTS_ENABLED=true    Enable TTS audio generation (default: false)
 """
 import argparse
 import asyncio
@@ -43,8 +47,12 @@ def discover_game_pairs() -> list[dict]:
     """
     Discover video/replay pairs in the test-games directory.
 
+    Creates one pair per video file - a folder with multiple videos
+    will produce multiple pairs (all sharing the same replay file).
+
     Returns list of dicts with:
         - folder_name: Name of the game folder
+        - video_name: Name of the video file (for display)
         - game_type: 'cs2' or 'aoe2'
         - video_path: Path to the video file
         - replay_path: Path to the replay/demo file
@@ -82,22 +90,30 @@ def discover_game_pairs() -> list[dict]:
             continue
         replay_path = replay_files[0]
 
-        # Find video file (prefer _compressed.mp4)
+        # Find ALL video files (prefer _compressed.mp4)
         video_files = [f for f in files if f.suffix.lower() == ".mp4"]
         if not video_files:
             logger.warning(f"Skipping {folder_name}: No .mp4 video found")
             continue
 
-        # Prefer compressed videos
+        # Prefer compressed videos, but get ALL of them
         compressed = [f for f in video_files if "_compressed" in f.name.lower()]
-        video_path = compressed[0] if compressed else video_files[0]
+        videos_to_use = compressed if compressed else video_files
 
-        pairs.append({
-            "folder_name": folder_name,
-            "game_type": game_type,
-            "video_path": video_path,
-            "replay_path": replay_path,
-        })
+        # Sort videos by name for consistent ordering (part 1, part 2, etc.)
+        videos_to_use = sorted(videos_to_use, key=lambda f: f.name)
+
+        # Create one pair per video
+        for video_path in videos_to_use:
+            # Generate a display name from the video filename
+            video_name = video_path.stem.replace("_compressed", "")
+            pairs.append({
+                "folder_name": folder_name,
+                "video_name": video_name,
+                "game_type": game_type,
+                "video_path": video_path,
+                "replay_path": replay_path,
+            })
 
     return pairs
 
@@ -161,8 +177,9 @@ async def create_analysis(pair: dict) -> dict:
             map_name = summary.get("map")
             duration = summary.get("duration")
 
-        # Generate title from folder name or player names
-        title = folder_name
+        # Generate title from video name (more specific than folder name)
+        video_name = pair.get("video_name", folder_name)
+        title = video_name
         if not title and players:
             title = f"{game_type.upper()}: {' vs '.join(players[:2])}"
             if map_name:
@@ -233,6 +250,25 @@ async def create_analysis(pair: dict) -> dict:
             if thumbnail_tmp_path and os.path.exists(thumbnail_tmp_path):
                 os.unlink(thumbnail_tmp_path)
 
+        # Generate TTS audio if enabled
+        audio_object_names = []
+        tts_enabled = os.getenv("TTS_ENABLED", "false").lower() == "true" and pair.get("tts_enabled", True)
+        if tts_enabled and result.tips:
+            await update_stage("generating_audio")
+            try:
+                from services.tts import generate_tips_audio
+                logger.info(f"Generating TTS audio for {len(result.tips)} tips...")
+                audio_object_names = await asyncio.to_thread(
+                    generate_tips_audio,
+                    [{"tip": tip.tip} for tip in result.tips],
+                    analysis_id
+                )
+                logger.info(f"  Generated {len(audio_object_names)} audio files")
+            except Exception as e:
+                logger.warning(f"  TTS generation failed (continuing without audio): {e}")
+        elif not tts_enabled:
+            logger.info("  TTS generation skipped (TTS_ENABLED=false or --no-tts)")
+
         # Update Firestore with complete analysis
         updates = {
             "status": "complete",
@@ -245,6 +281,7 @@ async def create_analysis(pair: dict) -> dict:
             "game_summary": result.game_summary.model_dump() if result.game_summary else None,
             "model_used": result.model_used,
             "provider": result.provider,
+            "audio_object_names": audio_object_names,
             "gemini_video_uri": gemini_file_info.get("uri"),
             "gemini_video_name": gemini_file_info.get("name"),
             "parsed_replay_data": sanitize_for_firestore(replay_data) if replay_data else None,
@@ -260,15 +297,17 @@ async def create_analysis(pair: dict) -> dict:
 
         logger.info(f"Analysis complete: {analysis_id} - {len(result.tips)} tips")
 
+        video_name = pair.get("video_name", folder_name)
         return {
             "analysis_id": analysis_id,
-            "folder_name": folder_name,
+            "video_name": video_name,
             "success": True,
             "tips_count": len(result.tips),
         }
 
     except Exception as e:
-        logger.exception(f"Failed to create analysis for {folder_name}: {e}")
+        video_name = pair.get("video_name", folder_name)
+        logger.exception(f"Failed to create analysis for {video_name}: {e}")
 
         # Update status to error if we created a Firestore record
         try:
@@ -281,7 +320,7 @@ async def create_analysis(pair: dict) -> dict:
 
         return {
             "analysis_id": analysis_id,
-            "folder_name": folder_name,
+            "video_name": video_name,
             "success": False,
             "error": str(e),
         }
@@ -289,8 +328,9 @@ async def create_analysis(pair: dict) -> dict:
 
 async def batch_create(
     game_type_filter: str | None = None,
-    delay_seconds: int = 30,
+    delay_seconds: int = 60,
     dry_run: bool = False,
+    tts_enabled: bool = True,
 ):
     """Create analyses for all discovered game pairs."""
     pairs = discover_game_pairs()
@@ -302,15 +342,28 @@ async def batch_create(
         logger.info("No video/replay pairs found.")
         return
 
+    # Check TTS settings
+    env_tts = os.getenv("TTS_ENABLED", "false").lower() == "true"
+    will_use_tts = env_tts and tts_enabled
+
     logger.info(f"Found {len(pairs)} video/replay pairs:")
     for pair in pairs:
-        logger.info(f"  - {pair['folder_name']} ({pair['game_type'].upper()})")
+        logger.info(f"  - {pair['video_name']} ({pair['game_type'].upper()})")
         logger.info(f"      Video: {pair['video_path'].name}")
         logger.info(f"      Replay: {pair['replay_path'].name}")
+        logger.info(f"      Folder: {pair['folder_name']}")
+
+    logger.info(f"\nSettings:")
+    logger.info(f"  TTS: {'enabled' if will_use_tts else 'disabled'}")
+    logger.info(f"  Delay between analyses: {delay_seconds}s")
 
     if dry_run:
         logger.info("\nDry run complete. Use without --dry-run to process.")
         return
+
+    # Pass TTS setting to each pair
+    for pair in pairs:
+        pair["tts_enabled"] = tts_enabled
 
     results = []
     for i, pair in enumerate(pairs):
@@ -335,13 +388,13 @@ async def batch_create(
         logger.info("\nCreated analyses:")
         for r in results:
             if r["success"]:
-                logger.info(f"  - {r['analysis_id']}: {r['folder_name']} ({r['tips_count']} tips)")
+                logger.info(f"  - {r['analysis_id']}: {r['video_name']} ({r['tips_count']} tips)")
 
     if fail_count > 0:
         logger.info("\nFailed analyses:")
         for r in results:
             if not r["success"]:
-                logger.info(f"  - {r['folder_name']}: {r.get('error', 'Unknown error')}")
+                logger.info(f"  - {r['video_name']}: {r.get('error', 'Unknown error')}")
 
 
 def main():
@@ -361,8 +414,13 @@ def main():
     parser.add_argument(
         "--delay",
         type=int,
-        default=30,
-        help="Delay in seconds between analyses (default: 30)"
+        default=60,
+        help="Delay in seconds between analyses (default: 60, use 90+ with TTS)"
+    )
+    parser.add_argument(
+        "--no-tts",
+        action="store_true",
+        help="Skip TTS audio generation even if TTS_ENABLED=true"
     )
 
     args = parser.parse_args()
@@ -371,6 +429,7 @@ def main():
         game_type_filter=args.game_type,
         delay_seconds=args.delay,
         dry_run=args.dry_run,
+        tts_enabled=not args.no_tts,
     ))
 
 
