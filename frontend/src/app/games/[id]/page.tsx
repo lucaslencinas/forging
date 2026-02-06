@@ -1,370 +1,353 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
-import { VideoAnalysisResults } from "@/components/VideoAnalysisResults";
-import { ChatSidebar } from "@/components/ChatSidebar";
+import { GameLayout } from "@/components/games/GameLayout";
+import { VideoPlayerV2, VideoPlayerV2Ref } from "@/components/games/VideoPlayerV2";
+import { GameSidebar } from "@/components/games/GameSidebar";
+import { TipsStreamV2 } from "@/components/games/TipsStreamV2";
+import { AgeProgressionV2 } from "@/components/games/AgeProgressionV2";
+import { RoundsProgressionV2 } from "@/components/games/RoundsProgressionV2";
+import { AnalysisPendingView } from "@/components/games/AnalysisPendingView";
 import type { components } from "@/types/api";
 
 type AnalysisDetailResponse = components["schemas"]["AnalysisDetailResponse"];
 type AnalysisStatusResponse = components["schemas"]["AnalysisStatusResponse"];
 
-// Stage display names
-const STAGE_LABELS: Record<string, string> = {
-  parsing_demo: "Parsing demo file...",
-  uploading_video: "Uploading video to AI...",
-  detecting_rounds: "Detecting rounds in video...",
-  analyzing: "Analyzing your gameplay...",
-  validating: "Verifying tips...",
-  generating_thumbnail: "Creating thumbnail...",
-  generating_audio: "Generating voice feedback...",
-};
+const DEFAULT_SIDEBAR_WIDTH = 384;
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-// Stage progress percentages
-const STAGE_PROGRESS: Record<string, number> = {
-  parsing_demo: 10,
-  uploading_video: 25,
-  detecting_rounds: 35,
-  analyzing: 60,
-  validating: 80,
-  generating_thumbnail: 90,
-  generating_audio: 95,
-};
-
-// Adaptive polling intervals - poll less frequently early, more often later
-function getPollingInterval(elapsedMs: number): number {
-  if (elapsedMs < 90000) return 15000;     // First 1.5 min: every 15s (analyzing stage)
-  if (elapsedMs < 180000) return 8000;     // 1.5-3 min: every 8s (validating stage)
-  return 3000;                              // After 3 min: every 3s (should be finishing)
-}
-
-// AI Thinking placeholder for coaching tips
-function AIThinkingPlaceholder({ stage }: { stage: string | null }) {
-  const stageLabel = stage ? STAGE_LABELS[stage] || stage : "Starting analysis...";
-  const progress = stage ? STAGE_PROGRESS[stage] || 50 : 5;
-
-  return (
-    <div className="space-y-4">
-      <h3 className="flex items-center gap-2 text-xl font-semibold text-zinc-100">
-        <span>📋</span> Coaching Tips
-        <span className="text-sm font-normal text-zinc-500">(analyzing...)</span>
-      </h3>
-
-      {/* AI thinking card */}
-      <div className="rounded-xl border border-orange-500/30 bg-orange-500/5 p-6">
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-500/20">
-            <svg
-              className="h-6 w-6 animate-pulse text-orange-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-              />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <h4 className="text-lg font-medium text-orange-400">
-              AI Coach is analyzing your gameplay...
-            </h4>
-            <p className="mt-1 text-sm text-zinc-400">
-              {stageLabel}
-            </p>
-
-            {/* Progress bar */}
-            <div className="mt-4 w-full bg-zinc-700 rounded-full h-2">
-              <div
-                className="bg-orange-500 h-2 rounded-full transition-all duration-500"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-
-            <div className="mt-3 flex items-center gap-2">
-              <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-400" style={{ animationDelay: "0ms" }} />
-              <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-400" style={{ animationDelay: "150ms" }} />
-              <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-400" style={{ animationDelay: "300ms" }} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Placeholder tip skeletons */}
-      {[1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className="rounded-xl border border-zinc-700/50 bg-zinc-800/30 p-4 opacity-50"
-        >
-          <div className="flex items-start gap-4">
-            <div className="h-6 w-14 rounded bg-zinc-700/50" />
-            <div className="flex-1 space-y-2">
-              <div className="h-4 w-16 rounded bg-zinc-700/50" />
-              <div className="h-3 w-full rounded bg-zinc-700/50" />
-              <div className="h-3 w-3/4 rounded bg-zinc-700/50" />
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const DEFAULT_CHAT_WIDTH = 384;
-
-export default function SharedGamePage() {
+export default function GameAnalysisPageV2() {
   const params = useParams();
-  const id = params.id as string;
-
+  const id = params?.id as string;
   const [analysis, setAnalysis] = useState<AnalysisDetailResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [stage, setStage] = useState<string | null>(null);
-  // Stable video URL - only set once to prevent video reloading during polling
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
-  const startTimeRef = useRef<number>(Date.now());
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatusResponse | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const [isDesktop, setIsDesktop] = useState(true);
+  const [isPolling, setIsPolling] = useState(false);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  const videoRef = useRef<VideoPlayerV2Ref>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isPollingInFlight = useRef(false);
+  const hasEnteredAnalyzingStage = useRef(false);
 
-  // Fetch full analysis data (only when complete or for initial load)
+  // Track screen size for responsive sidebar margin
+  // Using 880px as breakpoint (approx lg - 150px) for better responsiveness
+  const DESKTOP_BREAKPOINT = 880;
+  useEffect(() => {
+    const checkDesktop = () => setIsDesktop(window.innerWidth >= DESKTOP_BREAKPOINT);
+    checkDesktop();
+    window.addEventListener("resize", checkDesktop);
+    return () => window.removeEventListener("resize", checkDesktop);
+  }, []);
+
+  // Fetch analysis data
   const fetchAnalysis = useCallback(async () => {
     try {
-      const response = await fetch(`${apiUrl}/api/analysis/${id}`);
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error("Analysis not found");
-        }
-        throw new Error(`Failed to load analysis: ${response.statusText}`);
+      const res = await fetch(`${API_URL}/api/analysis/${id}`);
+      if (res.ok) {
+        const data: AnalysisDetailResponse = await res.json();
+        setAnalysis(data);
+        return data;
       }
-
-      const data: AnalysisDetailResponse = await response.json();
-      setAnalysis(data);
-
-      // Only set video URL once to prevent video reloading during polling
-      if (data.video_signed_url) {
-        setVideoUrl((prev) => prev || data.video_signed_url);
-      }
-
-      return data.status !== "processing";
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-      return true; // Stop polling on error
-    } finally {
-      setLoading(false);
+    } catch (e) {
+      console.error("Failed to fetch analysis", e);
     }
-  }, [id, apiUrl]);
+    return null;
+  }, [id]);
 
-  // Poll status endpoint (lightweight)
-  const pollStatus = useCallback(async (): Promise<boolean> => {
+  // Poll status endpoint
+  const pollStatus = useCallback(async () => {
     try {
-      console.log(`[polling] Fetching status for ${id}...`);
-      const response = await fetch(`${apiUrl}/api/analysis/${id}/status`);
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          setError("Analysis not found");
-          return true;
-        }
-        console.log(`[polling] Non-OK response: ${response.status}`);
-        return false; // Continue polling on other errors
+      const res = await fetch(`${API_URL}/api/analysis/${id}/status`);
+      if (res.ok) {
+        const data: AnalysisStatusResponse = await res.json();
+        setAnalysisStatus(data);
+        return data;
       }
-
-      const data: AnalysisStatusResponse = await response.json();
-      console.log(`[polling] Status: ${data.status}, Stage: ${data.stage}`);
-      setStage(data.stage || null);
-
-      if (data.status === "complete") {
-        console.log(`[polling] Complete! Fetching full analysis...`);
-        // Fetch full analysis data
-        await fetchAnalysis();
-        return true;
-      }
-
-      if (data.status === "error") {
-        console.log(`[polling] Error: ${data.error}`);
-        setError(data.error || "Analysis failed");
-        return true;
-      }
-
-      console.log(`[polling] Still processing, will poll again...`);
-      return false; // Continue polling
-    } catch (err) {
-      console.log(`[polling] Network error:`, err);
-      return false; // Continue polling on network errors
+    } catch (e) {
+      console.error("Failed to poll status", e);
     }
-  }, [id, apiUrl, fetchAnalysis]);
+    return null;
+  }, [id]);
 
+  // Keep stable ref to fetchAnalysis for polling effect
+  const fetchAnalysisRef = useRef(fetchAnalysis);
+  useEffect(() => {
+    fetchAnalysisRef.current = fetchAnalysis;
+  }, [fetchAnalysis]);
+
+  // Initial fetch and setup polling if needed
   useEffect(() => {
     if (!id) return;
 
-    let timeoutId: NodeJS.Timeout | null = null;
-    let cancelled = false;
-
-    async function startPolling() {
-      console.log(`[polling] Starting polling for ${id}`);
-      // Initial fetch to get video URL and current state
-      const isComplete = await fetchAnalysis();
-      console.log(`[polling] Initial fetch complete, isComplete: ${isComplete}`);
-
-      if (isComplete || cancelled) {
-        console.log(`[polling] Stopping - isComplete: ${isComplete}, cancelled: ${cancelled}`);
-        return;
-      }
-
-      // Start adaptive polling using status endpoint
-      async function poll() {
-        if (cancelled) {
-          console.log(`[polling] Cancelled, stopping`);
-          return;
-        }
-
-        const done = await pollStatus();
-        if (done || cancelled) {
-          console.log(`[polling] Done or cancelled, stopping`);
-          return;
-        }
-
-        const elapsed = Date.now() - startTimeRef.current;
-        const interval = getPollingInterval(elapsed);
-        console.log(`[polling] Scheduling next poll in ${interval}ms (elapsed: ${elapsed}ms)`);
-        timeoutId = setTimeout(poll, interval);
-      }
-
-      poll();
-    }
-
-    startPolling();
-
-    return () => {
-      cancelled = true;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+    const init = async () => {
+      const data = await fetchAnalysis();
+      if (data && (data.status === "pending" || data.status === "processing")) {
+        // Start polling
+        setIsPolling(true);
       }
     };
-  }, [id, fetchAnalysis, pollStatus]);
+    init();
 
-  // Initial loading state
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
-        <header className="border-b border-zinc-800 px-6 py-4">
-          <div className="mx-auto flex max-w-7xl items-center justify-between">
-            <Link href="/" className="text-2xl font-bold tracking-tight">
-              <span className="text-orange-500">Forging</span>
-            </Link>
-            <p className="text-sm text-zinc-400">AI-Powered Game Coach</p>
-          </div>
-        </header>
-        <main className="mx-auto max-w-7xl px-6 py-12">
-          <div className="flex items-center justify-center py-20">
-            <div className="text-center">
-              <svg
-                className="mx-auto h-12 w-12 animate-spin text-orange-500"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-              <p className="mt-4 text-zinc-400">Loading analysis...</p>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [id, fetchAnalysis]);
 
-  // Error state
-  if (error || (analysis && analysis.status === "error")) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
-        <header className="border-b border-zinc-800 px-6 py-4">
-          <div className="mx-auto flex max-w-7xl items-center justify-between">
-            <Link href="/" className="text-2xl font-bold tracking-tight">
-              <span className="text-orange-500">Forging</span>
-            </Link>
-            <p className="text-sm text-zinc-400">AI-Powered Game Coach</p>
-          </div>
-        </header>
-        <main className="mx-auto max-w-7xl px-6 py-12">
-          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-6 text-center">
-            <p className="text-red-400">
-              {error || analysis?.error || "Analysis failed"}
-            </p>
-            <Link
-              href="/new"
-              className="mt-4 inline-block rounded-lg bg-zinc-800 px-4 py-2 text-sm text-zinc-300 transition-colors hover:bg-zinc-700"
-            >
-              Try Again
-            </Link>
-          </div>
-        </main>
-      </div>
-    );
-  }
+  // Polling effect with dynamic interval
+  // Fast polling (5s) for early stages, slower (15s) once analyzing starts
+  const FAST_POLL_INTERVAL = 5000;
+  const SLOW_POLL_INTERVAL = 15000;
 
+  useEffect(() => {
+    if (!isPolling || !id) return;
+
+    const scheduleNextPoll = () => {
+      const interval = hasEnteredAnalyzingStage.current ? SLOW_POLL_INTERVAL : FAST_POLL_INTERVAL;
+      pollIntervalRef.current = setTimeout(poll, interval);
+    };
+
+    const poll = async () => {
+      // Skip if already polling to prevent duplicate requests
+      if (isPollingInFlight.current) return;
+      isPollingInFlight.current = true;
+
+      try {
+        const status = await pollStatus();
+        if (status) {
+          // Check if we've entered the analyzing stage (or later)
+          if (status.stage === "analyzing" || status.stage === "generating_thumbnail") {
+            hasEnteredAnalyzingStage.current = true;
+          }
+
+          if (status.status === "complete") {
+            // Stop polling and refetch full analysis
+            setIsPolling(false);
+            if (pollIntervalRef.current) {
+              clearTimeout(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
+            // Use ref to avoid stale closure
+            fetchAnalysisRef.current();
+            return;
+          } else if (status.status === "error") {
+            setIsPolling(false);
+            if (pollIntervalRef.current) {
+              clearTimeout(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
+            // Refetch to get error message
+            fetchAnalysisRef.current();
+            return;
+          }
+        }
+        // Schedule next poll
+        scheduleNextPoll();
+      } finally {
+        isPollingInFlight.current = false;
+      }
+    };
+
+    // Reset the analyzing stage flag when starting fresh
+    hasEnteredAnalyzingStage.current = false;
+    // Poll immediately
+    poll();
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearTimeout(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [isPolling, id, pollStatus]); // Removed fetchAnalysis dep - using ref instead
+
+  const handleSeek = (seconds: number) => {
+    videoRef.current?.seek(seconds);
+  };
+
+  const handleProgress = (seconds: number) => {
+    setCurrentTime(seconds);
+  };
+
+  // Get tips near current time for floating display
+  const nearbyTips = useMemo(() => {
+    if (!analysis?.tips) return [];
+    return analysis.tips.filter((t) => Math.abs(t.timestamp_seconds - currentTime) < 5);
+  }, [analysis?.tips, currentTime]);
+
+  // Show loading state
   if (!analysis) {
-    return null;
+    return (
+      <div className="h-screen w-screen bg-black flex items-center justify-center text-amber-500 text-sm animate-pulse">
+        Loading analysis...
+      </div>
+    );
   }
 
-  // Processing state - show skeleton with status
-  const isProcessing = analysis.status === "processing";
+  // Determine if we're still in early stages (before analyzing starts)
+  const isEarlyStage =
+    (analysis.status === "pending" || analysis.status === "processing") &&
+    analysisStatus?.stage !== "analyzing" &&
+    analysisStatus?.stage !== "generating_thumbnail" &&
+    analysisStatus?.stage !== "generating_audio";
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
-      <header className="border-b border-zinc-800 px-6 py-4 fixed top-0 left-0 right-0 z-30 bg-zinc-900/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between lg:transition-all" style={{ paddingRight: !isProcessing ? `${chatWidth}px` : undefined }}>
-          <Link href="/" className="text-2xl font-bold tracking-tight">
-            <span className="text-orange-500">Forging</span>
-          </Link>
-          <p className="text-sm text-zinc-400">AI-Powered Game Coach</p>
-        </div>
-      </header>
+  // Show pending view only during early stages
+  if (isEarlyStage) {
+    return (
+      <AnalysisPendingView
+        gameType={analysis.game_type as "aoe2" | "cs2"}
+        stage={analysisStatus?.stage || "Preparing analysis..."}
+        videoUrl={analysis.video_signed_url}
+        posterUrl={analysis.thumbnail_url ?? undefined}
+      />
+    );
+  }
 
-      <main className="mx-auto max-w-7xl px-6 py-12 pt-24">
-        <div className="space-y-6 lg:transition-all" style={{ marginRight: !isProcessing ? `${chatWidth}px` : undefined }}>
-          {/* Title and Summary */}
-          {analysis.title && (
-            <div>
-              <h1 className="text-3xl font-bold text-zinc-100">
-                {analysis.title}
-              </h1>
-              {/* Summary text as subtitle */}
-              {analysis.summary_text && (
-                <p className="mt-2 text-lg text-zinc-400">
-                  {analysis.summary_text}
+  // Analysis is in progress but past early stages - show normal page with loading state
+  const isAnalyzing = analysis.status === "pending" || analysis.status === "processing";
+
+  // Show error view if analysis failed
+  if (analysis.status === "error") {
+    return (
+      <GameLayout gameType={analysis.game_type}>
+        <div className="col-span-12 flex flex-col items-center justify-center min-h-[80vh] px-6 pt-16">
+          <div className="w-full max-w-2xl rounded-2xl border border-red-500/20 bg-red-500/5 backdrop-blur-sm p-8 text-center space-y-6">
+            {/* Error icon */}
+            <div className="flex justify-center">
+              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Error message */}
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold text-white">
+                Analysis Failed
+              </h2>
+              <p className="text-zinc-400 text-sm">
+                Something went wrong while analyzing your gameplay.
+              </p>
+              {analysis.error && (
+                <p className="text-red-400 text-xs font-mono bg-red-500/10 rounded-lg p-3 mt-4 text-left overflow-auto max-h-32">
+                  {analysis.error}
                 </p>
               )}
             </div>
+
+            {/* Actions */}
+            <div className="flex justify-center gap-4 pt-4">
+              <a
+                href="/new"
+                className="px-4 py-2 rounded-lg bg-amber-500 text-black font-medium hover:bg-amber-400 transition-colors"
+              >
+                Try Again
+              </a>
+              <a
+                href="/"
+                className="px-4 py-2 rounded-lg border border-white/20 text-white hover:bg-white/5 transition-colors"
+              >
+                Go Home
+              </a>
+            </div>
+          </div>
+        </div>
+      </GameLayout>
+    );
+  }
+
+  // Check if we have AoE2 age progression data
+  const hasAgeProgression =
+    analysis.game_type === "aoe2" &&
+    analysis.aoe2_content?.players_timeline &&
+    analysis.aoe2_content.players_timeline.length > 0;
+
+  // Check if we have CS2 rounds data
+  const hasRoundsProgression =
+    analysis.game_type === "cs2" &&
+    analysis.cs2_content?.rounds_timeline &&
+    analysis.cs2_content.rounds_timeline.length > 0;
+
+  return (
+    <GameLayout gameType={analysis.game_type}>
+      {/* Analyzing Banner */}
+      {isAnalyzing && (
+        <div className="fixed top-16 left-0 right-0 z-50 bg-amber-500/10 border-b border-amber-500/30 backdrop-blur-sm">
+          <div
+            className="px-4 py-2 flex items-center justify-center gap-3 text-sm"
+            style={{ marginRight: isDesktop ? `${sidebarWidth}px` : '0px' }}
+          >
+            <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-amber-400 font-medium">
+              {analysisStatus?.stage === "analyzing"
+                ? "AI is analyzing your gameplay..."
+                : analysisStatus?.stage === "generating_thumbnail"
+                ? "Generating thumbnail..."
+                : analysisStatus?.stage === "generating_audio"
+                ? "Generating audio..."
+                : "Processing..."}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Main scrollable content area */}
+      <div
+        className="transition-all"
+        style={{
+          marginRight: isDesktop ? `${sidebarWidth}px` : '0px',
+          paddingBottom: isDesktop ? '2rem' : '50vh',
+          paddingTop: isAnalyzing ? '40px' : '0px'
+        }}
+      >
+        {/* Title and Metadata Header - compact on mobile */}
+        <div className="px-4 md:px-6 py-2 md:py-4 space-y-2 md:space-y-3 flex-shrink-0">
+          {/* Title */}
+          <h1 className="text-lg md:text-2xl lg:text-3xl font-bold tracking-tight bg-gradient-to-br from-white via-white to-white/40 bg-clip-text text-transparent">
+            {analysis.title}
+          </h1>
+
+          {/* Summary text - hidden on very small screens */}
+          {analysis.summary_text && (
+            <p className="hidden sm:block text-sm text-zinc-500 leading-relaxed max-w-3xl">
+              {analysis.summary_text}
+            </p>
           )}
 
-          {/* Game metadata - show even during processing */}
-          <div className="flex flex-wrap items-center gap-4 text-sm text-zinc-400">
+          {/* Metadata badges - compact on mobile */}
+          <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs md:text-sm">
             {/* Game type badge */}
-            <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-medium uppercase">
+            <span
+              className={`rounded-full px-2 md:px-3 py-0.5 md:py-1 text-[9px] md:text-[10px] font-bold uppercase tracking-widest border ${
+                analysis.game_type === "aoe2"
+                  ? "border-amber-500/50 text-amber-400 bg-amber-500/10"
+                  : "border-blue-500/50 text-blue-400 bg-blue-500/10"
+              }`}
+            >
               {analysis.game_type}
             </span>
 
-            {/* Players */}
-            {analysis.players && analysis.players.length > 0 && (
-              <span>
+            {/* Players - different display for CS2 vs AoE2 */}
+            {analysis.game_type === "cs2" && analysis.pov_player ? (
+              <span className="text-zinc-400">
+                <span className="text-amber-400 font-medium">{analysis.pov_player}</span>
+                {analysis.cs2_content?.rounds_timeline && analysis.cs2_content.rounds_timeline.length > 0 && (
+                  <span className="text-zinc-500">
+                    {" "}({(() => {
+                      const wins = analysis.cs2_content!.rounds_timeline.filter(r => r.status === "win").length;
+                      const losses = analysis.cs2_content!.rounds_timeline.filter(r => r.status === "loss").length;
+                      return `${wins}W - ${losses}L`;
+                    })()})
+                  </span>
+                )}
+              </span>
+            ) : analysis.players && analysis.players.length > 0 && (
+              <span className="text-zinc-400">
                 {analysis.players.slice(0, 2).join(" vs ")}
                 {analysis.players.length > 2 && ` +${analysis.players.length - 2}`}
               </span>
@@ -372,84 +355,113 @@ export default function SharedGamePage() {
 
             {/* Map */}
             {analysis.map && (
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1.5 text-zinc-400">
+                <span className="text-zinc-600">|</span>
                 <span className="text-zinc-500">Map:</span> {analysis.map}
               </span>
             )}
 
             {/* Duration */}
             {analysis.duration && (
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1.5 text-zinc-400">
+                <span className="text-zinc-600">|</span>
                 <span className="text-zinc-500">Duration:</span> {analysis.duration}
               </span>
             )}
 
-            {/* Tips count - show processing state or actual count */}
-            {isProcessing ? (
-              <span className="flex items-center gap-1 text-orange-400">
-                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                analyzing...
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <span className="text-orange-400 font-medium">{analysis.tips_count}</span> coaching tips
-              </span>
-            )}
+            {/* Tips count */}
+            <span className="flex items-center gap-1.5">
+              <span className="text-zinc-600">|</span>
+              {isAnalyzing ? (
+                <>
+                  <span className="text-amber-400/50 font-semibold animate-pulse">...</span>
+                  <span className="text-zinc-500">tips</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-amber-400 font-semibold">
+                    {analysis.tips_count}
+                  </span>
+                  <span className="text-zinc-500">tips</span>
+                </>
+              )}
+            </span>
+          </div>
+        </div>
+
+        {/* Video Player - full width with aspect ratio preserved */}
+        <div className="w-full relative group bg-black">
+          <div className="aspect-video max-h-[60vh] md:max-h-[70vh] w-full">
+            <VideoPlayerV2
+              ref={videoRef}
+              videoUrl={analysis.video_signed_url}
+              posterUrl={analysis.thumbnail_url ?? undefined}
+              onProgress={handleProgress}
+            />
           </div>
 
-          {isProcessing ? (
-            <>
-              {/* Video player - show during processing */}
-              <div className="grid gap-6 lg:grid-cols-[1fr,400px]">
-                <div>
-                  <h2 className="mb-4 text-2xl font-bold text-zinc-100">Video Analysis</h2>
-                  {videoUrl ? (
-                    <video
-                      className="w-full rounded-xl"
-                      controls
-                      src={videoUrl}
-                    />
-                  ) : (
-                    <div className="aspect-video rounded-xl bg-zinc-800 flex items-center justify-center">
-                      <p className="text-zinc-500">Loading video...</p>
-                    </div>
-                  )}
-                </div>
-                <AIThinkingPlaceholder stage={stage} />
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Convert AnalysisDetailResponse to VideoAnalysisResults format */}
-              <VideoAnalysisResults
-                analysis={{
-                  game_type: analysis.game_type,
-                  tips: analysis.tips,
-                  game_summary: analysis.game_summary || undefined,
-                  model_used: analysis.model_used || "",
-                  provider: analysis.provider || "",
-                  cs2_content: analysis.cs2_content,
-                  aoe2_content: analysis.aoe2_content,
-                }}
-                videoUrl={videoUrl || analysis.video_signed_url}
-                audioUrls={analysis.audio_urls || []}
-              />
-            </>
-          )}
+          {/* Floating Tips Overlay (HUD Notifications) */}
+          <div className="absolute top-2 right-2 z-20 pointer-events-auto">
+            <TipsStreamV2 tips={nearbyTips} />
+          </div>
         </div>
-      </main>
 
-      <footer className="border-t border-zinc-800 px-6 py-8 text-center text-sm text-zinc-500 lg:transition-all" style={{ paddingRight: !isProcessing ? `${chatWidth}px` : undefined }}>
-        <p>Built for the Gemini 3 Hackathon</p>
-      </footer>
+        {/* Age Progression (for AoE2 - below video) */}
+        {hasAgeProgression && (
+          <div className="px-4 md:px-6 py-4">
+            <AgeProgressionV2
+              players={analysis.aoe2_content!.players_timeline}
+              videoDuration={analysis.duration ?? undefined}
+              povPlayerIndex={analysis.aoe2_content?.pov_player_index}
+            />
+          </div>
+        )}
 
-      {/* Chat Sidebar - always visible on desktop, collapsible on mobile */}
-      {!isProcessing && analysis && (
-        <ChatSidebar analysisId={id} gameType={analysis.game_type} onWidthChange={setChatWidth} />
+        {/* Rounds Progression (for CS2 - below video) */}
+        {hasRoundsProgression && (
+          <div className="px-4 md:px-6 py-4">
+            <RoundsProgressionV2
+              rounds={analysis.cs2_content!.rounds_timeline}
+              currentTime={currentTime}
+              onSeek={handleSeek}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* AREA B: Right Wing - Sidebar with AI Coach & Insights */}
+      {/* Desktop: Fixed sidebar on right */}
+      {isDesktop && (
+        <div
+          className="fixed right-0 top-16 bottom-0 bg-black/20 backdrop-blur-md"
+          style={{ width: `${sidebarWidth}px` }}
+        >
+          <GameSidebar
+            analysisId={id}
+            gameType={analysis.game_type}
+            tips={analysis.tips}
+            currentTime={currentTime}
+            onSeek={handleSeek}
+            onWidthChange={setSidebarWidth}
+            isAnalyzing={isAnalyzing}
+          />
+        </div>
       )}
-    </div>
+
+      {/* Mobile: Sidebar at bottom, full width */}
+      {!isDesktop && (
+        <div className="fixed left-0 right-0 bottom-0 h-[50vh] bg-zinc-950 border-t border-white/10 z-40 rounded-t-xl overflow-hidden">
+          <GameSidebar
+            analysisId={id}
+            gameType={analysis.game_type}
+            tips={analysis.tips}
+            currentTime={currentTime}
+            onSeek={handleSeek}
+            isAnalyzing={isAnalyzing}
+          />
+        </div>
+      )}
+
+    </GameLayout>
   );
 }
