@@ -42,10 +42,10 @@ export function RoundNavigation({
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-medium text-zinc-400">Rounds:</span>
-        <div className="flex flex-wrap gap-1">
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-semibold text-white">Rounds:</span>
+        <div className="flex flex-wrap gap-2">
           {rounds.map((round) => {
             const isActive = currentRound === round.round;
             const isDead = round.death_seconds !== null && round.death_seconds !== undefined;
@@ -55,13 +55,14 @@ export function RoundNavigation({
                 key={round.round}
                 onClick={() => onSeek(round.start_seconds)}
                 className={`
-                  min-w-[32px] px-2 py-1 text-xs font-medium rounded transition-all
+                  min-w-[40px] px-3 py-2 text-sm font-semibold rounded-xl transition-all duration-300
+                  border backdrop-blur-sm
                   ${
                     isActive
-                      ? "bg-blue-500 text-white ring-2 ring-blue-400"
+                      ? "bg-amber-500/20 text-amber-400 border-amber-500 shadow-lg shadow-amber-500/30 ring-2 ring-amber-500/20"
                       : isDead
-                      ? "bg-red-900/30 text-red-400 hover:bg-red-900/50"
-                      : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                      ? "bg-red-900/20 text-red-400 border-red-500/30 hover:bg-red-900/30 hover:border-red-500/50"
+                      : "bg-white/5 text-zinc-300 border-white/10 hover:bg-white/[0.07] hover:border-white/20"
                   }
                 `}
                 title={`Round ${round.round}: ${round.start_time} - ${round.end_time} (${round.status})`}
@@ -75,18 +76,23 @@ export function RoundNavigation({
 
       {/* Current round info */}
       {currentRound !== null && (
-        <div className="text-xs text-zinc-500">
+        <div className="text-sm text-zinc-400 bg-white/5 border border-white/10 rounded-lg p-3 backdrop-blur-sm">
           {(() => {
             const round = rounds.find((r) => r.round === currentRound);
             if (!round) return null;
 
             return (
               <span>
-                Round {round.round} ({round.start_time} - {round.end_time})
+                <span className="font-semibold text-white">Round {round.round}</span> 
+                <span className="text-zinc-600 mx-2">•</span>
+                <span className="text-zinc-500">{round.start_time} - {round.end_time}</span>
                 {round.death_time && (
-                  <span className="text-red-400 ml-2">
-                    Died at {round.death_time}
-                  </span>
+                  <>
+                    <span className="text-zinc-600 mx-2">•</span>
+<span className="text-red-400 font-medium">
+                      💀 Died at {round.death_time}
+                    </span>
+                  </>
                 )}
               </span>
             );

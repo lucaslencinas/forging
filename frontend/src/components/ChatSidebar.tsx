@@ -153,7 +153,7 @@ export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebar
   const MobileToggle = () => (
     <button
       onClick={() => setIsMobileOpen(!isMobileOpen)}
-      className="fixed bottom-4 right-4 z-50 lg:hidden bg-orange-500 hover:bg-orange-600 text-white rounded-full p-4 shadow-lg transition-all"
+      className="fixed bottom-4 right-4 z-50 lg:hidden bg-amber-500 hover:bg-amber-600 text-white rounded-full p-4 shadow-lg transition-all"
       title="Ask the AI Coach"
     >
       {isMobileOpen ? (
@@ -174,11 +174,11 @@ export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebar
   );
 
   const ChatContent = () => (
-    <div className="flex flex-col h-full bg-zinc-900 border-l border-zinc-800">
+    <div className="flex flex-col h-full bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border-l border-white/10">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+      <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/[0.02] backdrop-blur-sm">
         <div className="flex items-center gap-2">
-          <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -186,13 +186,13 @@ export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebar
               d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
             />
           </svg>
-          <span className="text-sm font-medium text-zinc-200">AI Coach</span>
-          <span className="text-xs text-zinc-500 uppercase">({gameType})</span>
+          <span className="text-sm font-semibold text-white">AI Coach</span>
+          <span className="text-xs text-zinc-500 uppercase font-medium">({gameType})</span>
         </div>
         {/* Mobile close button */}
         <button
           onClick={() => setIsMobileOpen(false)}
-          className="lg:hidden text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="lg:hidden text-zinc-400 hover:text-white transition-colors"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -204,8 +204,8 @@ export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebar
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="text-center py-8">
-            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-orange-500/20 flex items-center justify-center">
-              <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30 flex items-center justify-center">
+              <svg className="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -214,7 +214,7 @@ export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebar
                 />
               </svg>
             </div>
-            <p className="text-zinc-400 text-sm mb-2">Ask questions about your gameplay!</p>
+            <p className="text-white text-sm font-medium mb-2">Ask questions about your gameplay!</p>
             <p className="text-zinc-500 text-xs">Try clicking one of the suggestions below</p>
           </div>
         )}
@@ -225,14 +225,13 @@ export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebar
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[85%] rounded-xl px-4 py-2 text-sm ${
-                msg.role === "user"
-                  ? "bg-orange-500 text-white"
-                  : "bg-zinc-800 text-zinc-200 border border-zinc-700"
+              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm transition-all ${ msg.role === "user"
+                  ? "bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/20"
+                  : "bg-white/5 text-zinc-200 border border-white/10 backdrop-blur-sm"
               }`}
             >
               {msg.role === "assistant" ? (
-                <div className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-strong:text-orange-300 prose-code:bg-zinc-700 prose-code:px-1 prose-code:rounded">
+                <div className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-strong:text-amber-300 prose-code:bg-white/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded">
                   <ReactMarkdown>{msg.content}</ReactMarkdown>
                 </div>
               ) : (
@@ -244,11 +243,11 @@ export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebar
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-zinc-800 text-zinc-400 rounded-xl px-4 py-2 text-sm border border-zinc-700">
+            <div className="bg-white/5 text-zinc-400 rounded-2xl px-4 py-3 text-sm border border-white/10 backdrop-blur-sm">
               <div className="flex items-center gap-2">
-                <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-400" style={{ animationDelay: "0ms" }} />
-                <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-400" style={{ animationDelay: "150ms" }} />
-                <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-400" style={{ animationDelay: "300ms" }} />
+                <div className="h-2 w-2 animate-bounce rounded-full bg-amber-400" style={{ animationDelay: "0ms" }} />
+                <div className="h-2 w-2 animate-bounce rounded-full bg-amber-400" style={{ animationDelay: "150ms" }} />
+                <div className="h-2 w-2 animate-bounce rounded-full bg-amber-400" style={{ animationDelay: "300ms" }} />
               </div>
             </div>
           </div>
@@ -259,14 +258,14 @@ export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebar
 
       {/* Error */}
       {error && (
-        <div className="px-4 py-2 bg-red-500/10 border-t border-red-500/30 text-red-400 text-xs">
+        <div className="px-4 py-2 bg-red-500/10 border-t border-red-500/30 text-red-400 text-xs font-medium">
           {error}
         </div>
       )}
 
       {/* Question chips - show remaining chips or follow-up questions */}
       {(availableChips.length > 0 || (followUpQuestions && followUpQuestions.length > 0)) && !isLoading && (
-        <div className="px-4 pb-2">
+        <div className="px-4 pb-3">
           <div className="flex flex-wrap gap-2">
             {/* Show follow-up questions from the LLM first */}
             {followUpQuestions?.map((question, i) => (
@@ -274,7 +273,7 @@ export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebar
                 key={`follow-${i}`}
                 onClick={() => handleChipClick(question)}
                 disabled={isLoading}
-                className="px-3 py-1.5 text-xs rounded-full bg-orange-500/10 text-orange-300 border border-orange-500/30 hover:border-orange-500/50 hover:bg-orange-500/20 transition-colors disabled:opacity-50"
+                className="px-3 py-2 text-xs rounded-full font-medium bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:border-amber-500/50 hover:bg-amber-500/20 hover:shadow-lg hover:shadow-amber-500/10 transition-all disabled:opacity-50"
               >
                 {question}
               </button>
@@ -285,7 +284,7 @@ export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebar
                 key={`chip-${i}`}
                 onClick={() => handleChipClick(chip)}
                 disabled={isLoading}
-                className="px-3 py-1.5 text-xs rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700 hover:border-orange-500/50 hover:text-orange-400 transition-colors disabled:opacity-50"
+                className="px-3 py-2 text-xs rounded-full font-medium bg-white/5 text-zinc-300 border border-white/10 hover:border-amber-500/50 hover:text-amber-400 hover:bg-white/[0.07] transition-all disabled:opacity-50"
               >
                 {chip}
               </button>
@@ -295,7 +294,7 @@ export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebar
       )}
 
       {/* Input */}
-      <div className="p-4 border-t border-zinc-800">
+      <div className="p-4 border-t border-white/10 bg-white/[0.02]">
         <div className="flex gap-2">
           <input
             type="text"
@@ -303,13 +302,13 @@ export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebar
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask a question..."
-            className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-orange-500/50"
+            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all backdrop-blur-sm"
             disabled={isLoading}
           />
           <button
             onClick={() => sendMessage()}
             disabled={!input.trim() || isLoading}
-            className="bg-orange-500 hover:bg-orange-600 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+            className="bg-gradient-to-br from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:from-zinc-700 disabled:to-zinc-800 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 text-sm font-medium transition-all shadow-lg shadow-amber-500/20 disabled:shadow-none"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -332,10 +331,10 @@ export function ChatSidebar({ analysisId, gameType, onWidthChange }: ChatSidebar
         <div
           onMouseDown={handleMouseDown}
           className={`absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize group z-10 ${
-            isDragging ? "bg-orange-500" : "bg-transparent hover:bg-orange-500/50"
+            isDragging ? "bg-amber-500" : "bg-transparent hover:bg-amber-500/50"
           }`}
         >
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-16 rounded-full bg-zinc-600 group-hover:bg-orange-400 transition-colors" />
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-16 rounded-full bg-zinc-600 group-hover:bg-amber-400 transition-colors" />
         </div>
         <ChatContent />
       </div>

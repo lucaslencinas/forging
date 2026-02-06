@@ -223,9 +223,9 @@ export function FileUpload({
         className={`
           relative rounded-xl border-2 border-dashed p-8 text-center transition-all
           ${dragActive
-            ? "border-orange-500 bg-orange-500/10"
+            ? "border-amber-500 bg-amber-500/10"
             : replayFile
-              ? "border-green-500 bg-green-500/10"
+              ? "border-amber-500/50 bg-amber-500/5"
               : "border-zinc-700 bg-zinc-800/50 hover:border-zinc-600"
           }
         `}
@@ -240,7 +240,7 @@ export function FileUpload({
         {replayFile ? (
           <div className="space-y-2">
             <div className="text-4xl">✅</div>
-            <p className="font-medium text-green-400">{replayFile.name}</p>
+            <p className="font-medium text-amber-400">{replayFile.name}</p>
             <p className="text-sm text-zinc-500">
               {(replayFile.size / 1024 / 1024).toFixed(2)} MB
             </p>
@@ -286,7 +286,7 @@ export function FileUpload({
           <div className="mt-4 space-y-2">
             <div className="flex items-center gap-2 text-sm text-zinc-400">
               <span>{isVideoReady ? "✅" : isVideoUploading ? "⏳" : videoUpload.status === "error" ? "❌" : "🎥"}</span>
-              <span className={isVideoReady ? "text-green-400" : ""}>{videoFile.name}</span>
+              <span className={isVideoReady ? "text-amber-400" : ""}>{videoFile.name}</span>
               <span className="text-zinc-600">
                 ({(videoFile.size / 1024 / 1024).toFixed(2)} MB)
               </span>
@@ -303,7 +303,7 @@ export function FileUpload({
             {isVideoUploading && (
               <div className="w-full bg-zinc-700 rounded-full h-2">
                 <div
-                  className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                  className="bg-amber-500 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${videoUpload.progress}%` }}
                 />
               </div>
@@ -350,7 +350,7 @@ export function FileUpload({
           className={`
             w-full rounded-xl py-4 text-lg font-semibold transition-all
             ${canAnalyze
-              ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600"
+              ? "bg-gradient-to-r from-amber-500 to-amber-500 text-white hover:from-amber-600 hover:to-amber-600"
               : "cursor-not-allowed bg-zinc-700 text-zinc-500"
             }
           `}

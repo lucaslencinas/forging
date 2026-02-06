@@ -210,7 +210,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
             <div className="flex flex-col items-center gap-2">
               <svg
-                className="h-8 w-8 animate-spin text-orange-500"
+                className="h-8 w-8 animate-spin text-amber-500"
                 fill="none"
                 viewBox="0 0 24 24"
               >

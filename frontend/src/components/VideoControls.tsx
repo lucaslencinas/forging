@@ -164,13 +164,13 @@ export function VideoControls({
 
           {/* Progress fill - orange color */}
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-orange-500"
+            className="absolute inset-y-0 left-0 rounded-full bg-amber-500"
             style={{ width: `${progress}%` }}
           />
 
           {/* Scrubber dot */}
           <div
-            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-3 w-3 rounded-full bg-orange-500 opacity-0 transition-opacity group-hover:opacity-100"
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-3 w-3 rounded-full bg-amber-500 opacity-0 transition-opacity group-hover:opacity-100"
             style={{ left: `${progress}%` }}
           />
 
@@ -250,7 +250,7 @@ export function VideoControls({
               onClick={onVoiceToggle}
               className={`flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors ${
                 voiceEnabled
-                  ? "bg-orange-500 text-white"
+                  ? "bg-amber-500 text-white"
                   : "bg-white/10 text-white hover:bg-white/20"
               }`}
               aria-label={voiceEnabled ? "Mute voice coaching" : "Enable voice coaching"}

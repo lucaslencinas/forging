@@ -44,7 +44,7 @@ export function AnalysisResults({
             <button
               onClick={onReanalyze}
               disabled={isReanalyzing}
-              className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium transition-colors hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium transition-colors hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isReanalyzing ? (
                 <span className="flex items-center gap-2">
@@ -146,14 +146,14 @@ export function AnalysisResults({
 
       {/* Tips */}
       {analysis.tips && analysis.tips.length > 0 && (
-        <div className="rounded-xl border border-orange-500/30 bg-orange-500/5 p-6">
-          <h3 className="mb-4 text-lg font-semibold text-orange-400">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-6">
+          <h3 className="mb-4 text-lg font-semibold text-amber-400">
             Tips to Improve
           </h3>
           <ul className="space-y-4">
             {analysis.tips.map((tip, i) => (
               <li key={i} className="flex items-start gap-4">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500/20 text-sm font-bold text-orange-400">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-sm font-bold text-amber-400">
                   {i + 1}
                 </span>
                 <span className="text-zinc-300 leading-relaxed">{tip}</span>

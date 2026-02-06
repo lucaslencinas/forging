@@ -26,10 +26,10 @@ export function PlayerSelector({
 }: PlayerSelectorProps) {
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-zinc-700 bg-zinc-800/30 p-6">
+      <div className="rounded-xl border border-zinc-700 bg-zinc-800/30 p-4">
         <div className="flex items-center gap-3">
           <svg
-            className="h-5 w-5 animate-spin text-orange-500"
+            className="h-5 w-5 animate-spin text-amber-500"
             fill="none"
             viewBox="0 0 24 24"
           >
@@ -68,11 +68,11 @@ export function PlayerSelector({
           key={player.name}
           onClick={() => onSelect(player.name)}
           className={`
-            rounded-lg px-4 py-3 text-left transition-all
+            rounded-lg px-3 py-2 text-left transition-all text-sm
             ${
               isSelected
-                ? "bg-orange-500 text-white ring-2 ring-orange-500/50"
-                : "bg-zinc-800 hover:bg-zinc-700"
+                ? "bg-amber-500/20 text-amber-300 border border-amber-500/50"
+                : "bg-zinc-800 hover:bg-zinc-700 border border-transparent"
             }
           `}
         >
@@ -82,10 +82,10 @@ export function PlayerSelector({
     };
 
     return (
-      <div className="rounded-xl border border-zinc-700 bg-zinc-800/30 p-6 space-y-4">
+      <div className="rounded-xl border border-zinc-700 bg-zinc-800/30 p-4 space-y-3">
         <div>
-          <h4 className="font-medium text-zinc-300">Select Your Username</h4>
-          <p className="text-sm text-zinc-500">
+          <h4 className="font-medium text-zinc-300 text-sm">Select Your Username</h4>
+          <p className="text-xs text-zinc-500">
             Choose which player is you in the demo for personalized tips
           </p>
         </div>
@@ -103,7 +103,7 @@ export function PlayerSelector({
         {/* Team CT */}
         {teamCT.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase text-blue-400">CT Side</p>
+            <p className="text-xs font-semibold uppercase text-zinc-300">CT Side</p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {teamCT.map(renderPlayerButton)}
             </div>
@@ -121,7 +121,7 @@ export function PlayerSelector({
         )}
 
         {selectedPlayer && (
-          <p className="text-sm text-green-400">
+          <p className="text-sm text-amber-400">
             Tips will be personalized for: <span className="font-medium">{selectedPlayer}</span>
           </p>
         )}
@@ -137,17 +137,17 @@ export function PlayerSelector({
         key={player.name}
         onClick={() => onSelect(player.name)}
         className={`
-          rounded-lg px-4 py-3 text-left transition-all
+          rounded-lg px-3 py-2 text-left transition-all text-sm
           ${
             isSelected
-              ? "bg-orange-500 text-white ring-2 ring-orange-500/50"
-              : "bg-zinc-800 hover:bg-zinc-700"
+              ? "bg-amber-500/20 text-amber-300 border border-amber-500/50"
+              : "bg-zinc-800 hover:bg-zinc-700 border border-transparent"
           }
         `}
       >
         <span className="font-medium">{player.name}</span>
         {player.civilization && (
-          <span className={`ml-2 text-sm ${isSelected ? "text-orange-100" : "text-zinc-400"}`}>
+          <span className={`ml-2 text-sm ${isSelected ? "text-amber-100" : "text-zinc-400"}`}>
             ({player.civilization})
           </span>
         )}
@@ -156,10 +156,10 @@ export function PlayerSelector({
   };
 
   return (
-    <div className="rounded-xl border border-zinc-700 bg-zinc-800/30 p-6 space-y-4">
+    <div className="rounded-xl border border-zinc-700 bg-zinc-800/30 p-4 space-y-3">
       <div>
-        <h4 className="font-medium text-zinc-300">Select Your Player</h4>
-        <p className="text-sm text-zinc-500">
+        <h4 className="font-medium text-zinc-300 text-sm">Select Your Player</h4>
+        <p className="text-xs text-zinc-500">
           Choose which player is you in the replay for personalized tips
         </p>
       </div>
@@ -169,7 +169,7 @@ export function PlayerSelector({
       </div>
 
       {selectedPlayer && (
-        <p className="text-sm text-green-400">
+        <p className="text-sm text-amber-400">
           Tips will be personalized for: <span className="font-medium">{selectedPlayer}</span>
         </p>
       )}

@@ -99,7 +99,7 @@ export function HorizontalCarousel({
         <div className="mt-4 flex justify-center">
           <div className="h-1 w-24 bg-zinc-800 rounded-full overflow-hidden">
             <div
-              className="h-full bg-orange-500 rounded-full transition-all duration-300"
+              className="h-full bg-amber-500 rounded-full transition-all duration-300"
               style={{ width: `${Math.max(20, (1 - scrollProgress) * 100)}%`, marginLeft: `${scrollProgress * 80}%` }}
             />
           </div>

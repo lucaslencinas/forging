@@ -103,7 +103,7 @@ export function CS2AnalysisView({
       {shareUrl && (
         <div className="flex items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/10 p-4">
           <div className="flex-1">
-            <p className="text-sm font-medium text-green-400">Analysis saved!</p>
+            <p className="text-sm font-medium text-green-500">Analysis saved!</p>
             <p className="text-xs text-zinc-400 mt-1">Share this link with others:</p>
             <p className="text-sm text-zinc-300 mt-1 font-mono truncate">{shareUrl}</p>
           </div>
@@ -207,7 +207,7 @@ export function CS2AnalysisView({
                           className={`
                             min-w-[48px] px-3 py-2 rounded-lg transition-all text-center
                             ${isCurrent
-                              ? "bg-blue-500 text-white ring-2 ring-blue-400"
+                              ? "bg-amber-500 text-white ring-2 ring-amber-400"
                               : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
                             }
                           `}

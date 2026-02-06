@@ -14,8 +14,6 @@ const games = [
     subtitle: "Definitive Edition",
     icon: "🏰",
     fileType: ".aoe2record",
-    color: "from-amber-600 to-amber-800",
-    borderColor: "border-amber-500",
   },
   {
     id: "cs2" as const,
@@ -23,18 +21,16 @@ const games = [
     subtitle: "Demo Files",
     icon: "🎯",
     fileType: ".dem",
-    color: "from-blue-600 to-blue-800",
-    borderColor: "border-blue-500",
   },
 ];
 
 export function GameSelector({ selectedGame, onSelect }: GameSelectorProps) {
   return (
-    <div className="space-y-4">
-      <h3 className="text-center text-lg font-medium text-zinc-300">
+    <div className="space-y-6">
+      <h3 className="text-center text-xl font-semibold text-white">
         Select your game
       </h3>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-6 sm:grid-cols-2">
         {games.map((game) => {
           const isSelected = selectedGame === game.id;
           return (
@@ -42,36 +38,38 @@ export function GameSelector({ selectedGame, onSelect }: GameSelectorProps) {
               key={game.id}
               onClick={() => onSelect(isSelected ? null : game.id)}
               className={`
-                relative overflow-hidden rounded-xl border-2 p-6 text-left transition-all
+                relative overflow-hidden rounded-3xl border p-8 text-left transition-all duration-300
                 ${isSelected
-                  ? `${game.borderColor} bg-gradient-to-br ${game.color}`
-                  : "border-zinc-700 bg-zinc-800/50 hover:border-zinc-600 hover:bg-zinc-800"
+                  ? "border-amber-500 bg-white/10 shadow-lg shadow-amber-500/20"
+                  : "border-white/10 bg-white/5 hover:bg-white/[0.07] hover:border-white/20"
                 }
               `}
             >
               <div className="flex items-start gap-4">
-                <span className="text-4xl">{game.icon}</span>
-                <div>
-                  <h4 className="text-xl font-semibold">{game.name}</h4>
-                  <p className="text-sm text-zinc-400">{game.subtitle}</p>
-                  <p className="mt-2 text-xs text-zinc-500">
+                <span className="text-5xl">{game.icon}</span>
+                <div className="flex-1">
+                  <h4 className="text-2xl font-semibold text-white mb-1">{game.name}</h4>
+                  <p className="text-sm text-zinc-400 mb-3">{game.subtitle}</p>
+                  <p className="text-xs text-zinc-600 font-mono">
                     File type: {game.fileType}
                   </p>
                 </div>
               </div>
               {isSelected && (
-                <div className="absolute right-4 top-4">
-                  <svg
-                    className="h-6 w-6 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                <div className="absolute right-6 top-6">
+                  <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center">
+                    <svg
+                      className="h-5 w-5 text-white"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
                 </div>
               )}
             </button>
