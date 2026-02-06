@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { GameSelector } from "@/components/GameSelector";
-import { FileUpload } from "@/components/FileUpload";
+import { Header } from "@/components/layout/Header";
+import { GameSelectorPortal } from "@/components/new/GameSelectorPortal";
+import { FileUploadPortal } from "@/components/new/FileUploadPortal";
+import { Background } from "@/components/layout/Background";
 import type { components } from "@/types/api";
 
 type GameType = "aoe2" | "cs2" | null;
 type AnalysisState = "idle" | "video-analyzing" | "error";
 type AnalysisStartResponse = components["schemas"]["AnalysisStartResponse"];
 
-export default function Home() {
+export default function NewAnalysisPageV2() {
   const router = useRouter();
   const [selectedGame, setSelectedGame] = useState<GameType>(null);
   const [analysisState, setAnalysisState] = useState<AnalysisState>("idle");
@@ -92,62 +93,56 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
-      <header className="border-b border-zinc-800 px-6 py-4">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <Link href="/" className="text-2xl font-bold tracking-tight">
-            <span className="text-orange-500">Forging</span>
-          </Link>
-          <p className="text-sm text-zinc-400">AI-Powered Game Coach</p>
-        </div>
-      </header>
+    <div className="min-h-screen bg-zinc-950 text-white selection:bg-amber-500/30 font-sans overflow-x-hidden">
+      <Background />
 
-      <main className="mx-auto max-w-6xl px-6 py-12">
-        <div className="space-y-12">
-          {/* Hero Section */}
-          <div className="text-center">
-            <h2 className="text-4xl font-bold tracking-tight sm:text-5xl">
-              Level up your game
-            </h2>
-            <p className="mt-4 text-lg text-zinc-400">
+      <div className="relative z-10">
+        <Header />
+
+        {/* Content Container - positioned higher like home page */}
+        <main className="min-h-[calc(100vh-80px)] flex flex-col items-center justify-start px-6 pt-16 md:pt-24 pb-12">
+
+          {/* Title Block */}
+          <div className="mb-10 text-center space-y-4">
+            <h1 className="text-5xl md:text-6xl font-bold tracking-tighter bg-gradient-to-br from-white via-white to-white/40 bg-clip-text text-transparent pb-2">
+              Level up your <span className="italic">game</span>
+            </h1>
+            <p className="text-xl text-zinc-500 max-w-2xl mx-auto leading-relaxed">
               Upload your replay file and get AI-powered coaching feedback
             </p>
           </div>
 
-          {/* Game Selection */}
-          <GameSelector
-            selectedGame={selectedGame}
-            onSelect={setSelectedGame}
-          />
-
-          {/* File Upload */}
-          {selectedGame && (
-            <FileUpload
-              gameType={selectedGame}
-              onVideoAnalyze={handleVideoAnalyze}
-              isLoading={analysisState === "video-analyzing"}
-              loadingState={analysisState}
+          {/* Component Stage */}
+          <div className="w-full max-w-5xl relative">
+            <GameSelectorPortal
+              selectedGame={selectedGame}
+              onSelect={setSelectedGame}
             />
-          )}
 
-          {/* Error Display */}
-          {error && (
-            <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-6 text-center">
-              <p className="text-red-400 mb-4">{error}</p>
-              <button
-                onClick={handleReset}
-                className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium transition-colors hover:bg-orange-700"
-              >
-                Try Again
-              </button>
-            </div>
-          )}
-        </div>
-      </main>
+            {/* File Upload Stage */}
+            {selectedGame && (
+              <FileUploadPortal
+                gameType={selectedGame}
+                isLoading={analysisState === "video-analyzing"}
+                onVideoAnalyze={handleVideoAnalyze}
+              />
+            )}
 
-      <footer className="border-t border-zinc-800 px-6 py-8 text-center text-sm text-zinc-500">
-        <p>Built for the Gemini 3 Hackathon</p>
-      </footer>
+            {/* Error Display */}
+            {error && (
+              <div className="mt-8 rounded-xl border border-red-500/50 bg-red-500/10 backdrop-blur-sm p-6 text-center">
+                <p className="text-red-400 mb-4">{error}</p>
+                <button
+                  onClick={handleReset}
+                  className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium transition-colors hover:bg-amber-700"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
