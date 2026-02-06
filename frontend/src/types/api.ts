@@ -393,6 +393,8 @@ export interface components {
              * @default []
              */
             players: string[];
+            /** Pov Player */
+            pov_player?: string | null;
             /** Map */
             map?: string | null;
             /** Duration */
@@ -601,6 +603,11 @@ export interface components {
             response: string;
             /** Interaction Id */
             interaction_id: string;
+            /**
+             * Follow Up Questions
+             * @default []
+             */
+            follow_up_questions: string[];
         };
         /**
          * DemoParseRequest

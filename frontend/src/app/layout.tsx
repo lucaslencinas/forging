@@ -39,8 +39,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-zinc-950">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-950`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-950 selection:bg-amber-500/30`}
       >
+        <div className="fixed inset-0 z-[-1] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.15),rgba(0,0,0,0.8))]" />
         {children}
       </body>
     </html>
