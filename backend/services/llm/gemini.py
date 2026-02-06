@@ -31,20 +31,18 @@ class VideoAnalysisResult:
 class GeminiProvider(LLMProvider):
     """Gemini API provider with multi-key support and rate limit fallback."""
 
-    # Models to try in order of preference (all available on free AI Studio tier)
-    MODELS = [
-        "gemini-2.0-flash",  # Free tier, multimodal (text, image, video, audio)
-        "gemini-1.5-flash",  # Free tier fallback, stable and widely available
-        "gemini-1.5-pro",  # Free tier fallback, higher quality
-    ]
+    # Default models (can be overridden via GEMINI_MODEL and GEMINI_FAST_MODEL env vars)
+    # Primary model for quality tasks (analysis, validation, chat)
+    DEFAULT_MODEL = "gemini-3-pro-preview"
+    # Fast model for quick tasks (round detection, simple parsing)
+    DEFAULT_FAST_MODEL = "gemini-3-flash-preview"
 
-    # Video analysis models (configurable via env or UI)
-    VIDEO_MODELS = [
-        "gemini-2.5-flash",  # Best price/performance, thinking model
-        "gemini-2.5-pro",  # Best quality, reasoning
-        "gemini-3-flash-preview",  # Newest flash model (experimental)
-        "gemini-3-pro-preview",  # Newest pro model (experimental)
-        "gemini-2.0-flash",  # Stable, fast
+    # Fallback models if primary fails (in order of preference)
+    FALLBACK_MODELS = [
+        "gemini-3-flash-preview",  # Fast Gemini 3
+        "gemini-2.5-pro",  # Best quality Gemini 2.5
+        "gemini-2.5-flash",  # Fast Gemini 2.5
+        "gemini-2.0-flash",  # Stable fallback
     ]
 
     # Cooldown period for rate-limited keys (24 hours for daily quota limits)
@@ -64,7 +62,7 @@ class GeminiProvider(LLMProvider):
         self._key_cooldowns: dict[int, float] = {}  # index -> cooldown_until timestamp
 
         self.enabled = os.getenv("GEMINI_ENABLED", "true").lower() == "true"
-        self.model = model or self.MODELS[0]
+        self.model = model or os.getenv("GEMINI_MODEL", self.DEFAULT_MODEL)
         self._genai = None
         self._configured_key: Optional[str] = None  # Track which key is configured
 
@@ -272,7 +270,7 @@ class GeminiProvider(LLMProvider):
             file_name: The Gemini file name from upload_video()
             prompt: The analysis prompt
             system_prompt: Optional system instructions
-            model: Optional model override (defaults to gemini-2.0-flash)
+            model: Optional model override (defaults to GEMINI_MODEL env var or gemini-3-pro-preview)
             video_path: Optional path to video file for re-upload on key rotation
 
         Returns:
@@ -289,7 +287,7 @@ class GeminiProvider(LLMProvider):
                 error="GEMINI_API_KEY not configured or all keys on cooldown",
             )
 
-        model_name = model or os.getenv("VIDEO_ANALYSIS_MODEL", "gemini-2.5-flash")
+        model_name = model or os.getenv("GEMINI_MODEL", self.DEFAULT_MODEL)
         max_key_attempts = len(self.api_keys)
         last_error = None
 

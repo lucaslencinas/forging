@@ -52,18 +52,31 @@ def get_signing_credentials():
     """
     Get credentials that can sign URLs.
 
-    On Cloud Run: Uses the default service account directly (with IAM signing).
-    Locally: Uses gcloud CLI token to impersonate the service account.
+    Priority:
+    1. GOOGLE_APPLICATION_CREDENTIALS env var (service account key file)
+    2. Cloud Run default service account (with IAM signing)
+    3. gcloud CLI impersonation (legacy, requires frequent re-auth)
 
-    Requires (local only): Your gcloud account must have roles/iam.serviceAccountTokenCreator
+    Requires (impersonation only): Your gcloud account must have roles/iam.serviceAccountTokenCreator
     on the target service account.
     """
     global _signing_credentials
     if _signing_credentials is not None:
         return _signing_credentials
 
-    # On Cloud Run, use impersonated credentials from the default SA
-    # This is needed because compute credentials can't sign directly
+    # Priority 1: Service account key file (recommended for local dev)
+    key_file = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if key_file and os.path.exists(key_file):
+        from google.oauth2 import service_account
+        credentials = service_account.Credentials.from_service_account_file(
+            key_file,
+            scopes=['https://www.googleapis.com/auth/cloud-platform'],
+        )
+        logger.info(f"Using service account key file: {key_file}")
+        _signing_credentials = credentials
+        return _signing_credentials
+
+    # Priority 2: Cloud Run - use impersonated credentials for signing
     if is_running_on_cloud_run():
         source_credentials, project = default()
         logger.info("Running on Cloud Run, using IAM signing credentials")
@@ -77,9 +90,14 @@ def get_signing_credentials():
         _signing_credentials = impersonated
         return _signing_credentials
 
-    # Local development: Use gcloud CLI token to impersonate the service account
-    # Use explicit account to avoid conflicts with other gcloud configurations
+    # Priority 3: gcloud CLI impersonation (legacy fallback)
     local_dev_account = os.getenv("GCP_LOCAL_ACCOUNT")
+    if not local_dev_account:
+        raise ValueError(
+            "No credentials available. Set GOOGLE_APPLICATION_CREDENTIALS to a service account key file, "
+            "or set GCP_LOCAL_ACCOUNT for gcloud impersonation."
+        )
+
     logger.info(f"Local dev: Using gcloud CLI ({local_dev_account}) to impersonate {TARGET_SERVICE_ACCOUNT}")
     result = subprocess.run(
         ['gcloud', 'auth', 'print-access-token', f'--account={local_dev_account}'],

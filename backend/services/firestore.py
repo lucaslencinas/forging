@@ -40,21 +40,39 @@ def get_credentials():
     """
     Get credentials for Firestore access.
 
-    On Cloud Run: Uses the default service account directly (no impersonation needed).
-    Locally: Uses gcloud CLI token to impersonate the service account.
+    Priority:
+    1. GOOGLE_APPLICATION_CREDENTIALS env var (service account key file)
+    2. Cloud Run default service account
+    3. gcloud CLI impersonation (legacy, requires frequent re-auth)
 
-    Requires (local only): Your gcloud account must have roles/iam.serviceAccountTokenCreator
+    Requires (impersonation only): Your gcloud account must have roles/iam.serviceAccountTokenCreator
     on the target service account.
     """
-    # On Cloud Run, use default credentials directly
+    # Priority 1: Service account key file (recommended for local dev)
+    key_file = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if key_file and os.path.exists(key_file):
+        from google.oauth2 import service_account
+        credentials = service_account.Credentials.from_service_account_file(
+            key_file,
+            scopes=['https://www.googleapis.com/auth/cloud-platform'],
+        )
+        logger.info(f"Using service account key file: {key_file}")
+        return credentials
+
+    # Priority 2: Cloud Run default credentials
     if is_running_on_cloud_run():
         source_credentials, project = default()
         logger.info("Running on Cloud Run, using default credentials")
         return source_credentials
 
-    # Local development: Use gcloud CLI token to impersonate the service account
-    # Use explicit account to avoid conflicts with other gcloud configurations
+    # Priority 3: gcloud CLI impersonation (legacy fallback)
     local_dev_account = os.getenv("GCP_LOCAL_ACCOUNT")
+    if not local_dev_account:
+        raise ValueError(
+            "No credentials available. Set GOOGLE_APPLICATION_CREDENTIALS to a service account key file, "
+            "or set GCP_LOCAL_ACCOUNT for gcloud impersonation."
+        )
+
     logger.info(f"Local dev: Using gcloud CLI ({local_dev_account}) to impersonate {TARGET_SERVICE_ACCOUNT}")
     result = subprocess.run(
         ['gcloud', 'auth', 'print-access-token', f'--account={local_dev_account}'],
@@ -143,6 +161,7 @@ async def list_analyses(
     limit: int = 12,
     game_type: Optional[str] = None,
     public_only: bool = True,
+    completed_only: bool = True,
 ) -> list[dict]:
     """
     List recent analyses for the community carousel.
@@ -151,6 +170,7 @@ async def list_analyses(
         limit: Maximum number of analyses to return.
         game_type: Filter by game type (aoe2, cs2). None for all.
         public_only: Only return public analyses.
+        completed_only: Only return completed analyses (excludes pending, processing, error).
 
     Returns:
         List of analysis records (lightweight, for carousel display).
@@ -160,6 +180,9 @@ async def list_analyses(
 
     if public_only:
         query = query.where("is_public", "==", True)
+
+    if completed_only:
+        query = query.where("status", "==", "complete")
 
     if game_type:
         query = query.where("game_type", "==", game_type)
@@ -216,6 +239,8 @@ async def update_analysis(analysis_id: str, updates: dict) -> bool:
     """
     Update an analysis record in Firestore.
 
+    Non-blocking: Runs Firestore call in thread pool.
+
     Args:
         analysis_id: The analysis ID.
         updates: Dictionary of fields to update.
@@ -223,17 +248,24 @@ async def update_analysis(analysis_id: str, updates: dict) -> bool:
     Returns:
         True if updated, False if not found.
     """
-    client = get_firestore_client()
-    doc_ref = client.collection(ANALYSES_COLLECTION).document(analysis_id)
-    doc = doc_ref.get()
+    import asyncio
 
-    if not doc.exists:
-        return False
+    def _sync_update():
+        client = get_firestore_client()
+        doc_ref = client.collection(ANALYSES_COLLECTION).document(analysis_id)
+        doc = doc_ref.get()
 
-    updates["updated_at"] = datetime.utcnow()
-    doc_ref.update(updates)
-    logger.info(f"Updated analysis {analysis_id}")
-    return True
+        if not doc.exists:
+            return False
+
+        updates["updated_at"] = datetime.utcnow()
+        doc_ref.update(updates)
+        return True
+
+    result = await asyncio.to_thread(_sync_update)
+    if result:
+        logger.info(f"Updated analysis {analysis_id}")
+    return result
 
 
 async def get_analysis_status(analysis_id: str) -> Optional[dict]:
