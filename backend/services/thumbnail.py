@@ -59,10 +59,20 @@ def extract_thumbnail(
     try:
         # ffmpeg command to extract single frame
         # -ss before -i for fast seeking
-        # Scale to fit 16:9 (640x360) with dark padding to prevent distortion
+        #
+        # Key: Use scale with iw*sar to respect display aspect ratio (DAR).
+        # Videos may have non-square pixels (SAR != 1:1), meaning the stored
+        # resolution differs from the display resolution. For example, a video
+        # stored at 1280x720 with DAR 43:18 should display at ~1720x720.
+        #
+        # The filter chain:
+        # 1. scale=iw*sar:ih - Apply SAR to get correct display dimensions
+        # 2. setsar=1 - Reset SAR to 1:1 (square pixels) for the output
+        # 3. scale=1280:-2 - Scale to max 1280 width, auto height (even number)
         scale_filter = (
-            "scale=640:360:force_original_aspect_ratio=decrease,"
-            "pad=640:360:(ow-iw)/2:(oh-ih)/2:color=0x18181b"
+            "scale=iw*sar:ih,"  # Apply SAR to pixel dimensions
+            "setsar=1,"  # Reset to square pixels
+            "scale='min(1280,iw)':-2"  # Scale down if needed, keep aspect ratio
         )
         cmd = [
             "ffmpeg",

@@ -101,7 +101,7 @@ class CS2RemovedTip(BaseModel):
     id: str = Field(..., description="ID of the removed tip")
     reason: str = Field(..., description="Why the tip was removed")
     confidence: int = Field(
-        ..., ge=1, le=10, description="Confidence score that led to removal"
+        ..., ge=0, le=10, description="Confidence score that led to removal (0 = no confidence)"
     )
 
 

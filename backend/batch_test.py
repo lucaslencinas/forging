@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Batch testing script for CS2 video analysis using the Turtle Agent Pipeline v2.
+Batch testing script for CS2 video analysis using the Gemini Agent Pipeline.
 
 Uses the new 2-agent architecture:
 - Analyst: Multi-angle analysis (10-20 tips)
@@ -556,7 +556,7 @@ async def process_video(
 
 async def main():
     parser = argparse.ArgumentParser(
-        description="Batch test CS2 video analysis with the Turtle Agent Pipeline v2"
+        description="Batch test CS2 video analysis with the Gemini Agent Pipeline"
     )
     parser.add_argument(
         "--base-path",

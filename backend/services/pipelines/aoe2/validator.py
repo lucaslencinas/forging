@@ -97,7 +97,7 @@ class AoE2ValidatorAgent(BaseAgent):
 
         # Call the model
         interaction = self.client.interactions.create(
-            model=os.getenv("TURTLE_MODEL", "gemini-3-pro-preview"),
+            model=os.getenv("GEMINI_MODEL", "gemini-3-pro-preview"),
             input=input_content,
             system_instruction=system_prompt,
             generation_config={
