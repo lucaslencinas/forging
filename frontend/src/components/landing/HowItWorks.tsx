@@ -1,59 +1,79 @@
-"use client";
-
-import { HorizontalCarousel } from "../HorizontalCarousel";
-
-const steps = [
-  {
-    number: "1",
-    title: "Upload your gameplay",
-    description:
-      "Record your game and upload the video. We support MP4 files up to 700MB, 30 minutes max.",
-    icon: "📤",
-  },
-  {
-    number: "2",
-    title: "AI analyzes every moment",
-    description:
-      "Our AI watches your gameplay and identifies key moments, mistakes, and opportunities.",
-    icon: "🤖",
-  },
-  {
-    number: "3",
-    title: "Get timestamped tips",
-    description:
-      "Receive coaching tips linked to specific moments in your video. Click to jump right to that moment.",
-    icon: "💡",
-  },
-];
-
 export function HowItWorks() {
   return (
-    <section className="px-6 py-16 bg-gradient-to-br from-zinc-900 via-zinc-900 to-blue-950/10">
-      <div className="mx-auto max-w-6xl">
-        <h2 className="text-center text-2xl font-bold text-white sm:text-3xl">
-          How It Works
-        </h2>
-        <p className="mt-4 text-center text-zinc-400">
-          Get personalized coaching in three simple steps
-        </p>
+    <section className="py-24 px-6 border-y border-white/5">
+      <div className="max-w-6xl mx-auto">
+        <div className="text-center mb-16">
+          <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-4">
+            From replay to<br/>rank-up in minutes
+          </h2>
+          <p className="text-zinc-500 text-lg max-w-2xl mx-auto">
+            Upload your demo, get AI-powered insights instantly.
+          </p>
+        </div>
 
-        <div className="mt-12">
-          <HorizontalCarousel showDots={false}>
-            {steps.map((step) => (
-              <div key={step.number} className="flex-shrink-0 w-72 text-center p-4">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-500/20 to-amber-500/20 text-3xl ring-1 ring-orange-500/20">
-                  {step.icon}
-                </div>
-                <div className="mt-4 text-sm font-medium text-orange-500">
-                  Step {step.number}
-                </div>
-                <h3 className="mt-2 text-lg font-semibold text-white">
-                  {step.title}
-                </h3>
-                <p className="mt-2 text-sm text-zinc-400">{step.description}</p>
+        {/* Step-by-Step Flow */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-md md:max-w-none mx-auto">
+          {/* Step 1 */}
+          <div className="relative">
+            <div className="absolute -top-4 -left-4 w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-500 flex items-center justify-center text-black font-bold text-xl shadow-lg shadow-amber-500/20">
+              1
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-zinc-950/50 p-6 pt-10 hover:border-white/20 transition-colors">
+              <h3 className="text-xl font-semibold text-white mb-2">Select Your Game</h3>
+              <p className="text-zinc-400 text-sm mb-4">
+                Choose from AoE II, CS2, or other supported titles. Upload your replay file or screen recording.
+              </p>
+              <div className="h-32 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center text-xs text-zinc-600">
+                [Game Selection UI]
               </div>
-            ))}
-          </HorizontalCarousel>
+            </div>
+          </div>
+
+          {/* Step 2 */}
+          <div className="relative">
+            <div className="absolute -top-4 -left-4 w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-500 flex items-center justify-center text-black font-bold text-xl shadow-lg shadow-amber-500/20">
+              2
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-zinc-950/50 p-6 pt-10 hover:border-white/20 transition-colors">
+              <h3 className="text-xl font-semibold text-white mb-2">AI Processes Gameplay</h3>
+              <p className="text-zinc-400 text-sm mb-4">
+                Our engine parses every frame, tracking your economy, positioning, and decision-making.
+              </p>
+              <div className="h-32 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center">
+                <div className="flex items-center gap-2 text-amber-500">
+                  <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="text-xs font-mono">Analyzing...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 3 */}
+          <div className="relative">
+            <div className="absolute -top-4 -left-4 w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-500 flex items-center justify-center text-black font-bold text-xl shadow-lg shadow-amber-500/20">
+              3
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-zinc-950/50 p-6 pt-10 hover:border-white/20 transition-colors">
+              <h3 className="text-xl font-semibold text-white mb-2">Review Timestamped Feedback</h3>
+              <p className="text-zinc-400 text-sm mb-4">
+                Click on any tip to see the exact moment in your gameplay. Ask the AI coach questions.
+              </p>
+              <div className="h-32 rounded-lg bg-zinc-900 border border-white/5 p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <div className="w-1 h-1 rounded-full bg-red-500 mt-1.5 shrink-0" />
+                  <div className="text-xs text-zinc-500">3:45 - Utility missed</div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="w-1 h-1 rounded-full bg-yellow-500 mt-1.5 shrink-0" />
+                  <div className="text-xs text-zinc-500">5:12 - Crosshair placement</div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="w-1 h-1 rounded-full bg-zinc-500 mt-1.5 shrink-0" />
+                  <div className="text-xs text-zinc-500">7:00 - Positioning error</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

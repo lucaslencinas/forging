@@ -4,8 +4,9 @@ const columns = [
     subtitle: "Available today",
     color: "green",
     items: [
-      { title: "Video Analysis", description: "AI-powered gameplay review" },
-      { title: "Voice Coaching", description: "Audio tips synced to video" },
+      { title: "Video Analysis", description: "AI watches your gameplay frame-by-frame, no game API required" },
+      { title: "Cross-Genre Support", description: "Same platform for RTS (AoE2) and FPS (CS2) games" },
+      { title: "AI Chat Follow-ups", description: "Ask questions about specific moments in your match" },
     ],
   },
   {
@@ -13,8 +14,9 @@ const columns = [
     subtitle: "Coming soon",
     color: "orange",
     items: [
-      { title: "Progress Dashboard", description: "Track improvement over time" },
-      { title: "Shareable Highlights", description: "Auto-generate clips for social" },
+      { title: "Skill Radar Charts", description: "Visual breakdown of Mechanics, Positioning, Game Sense" },
+      { title: "Graded Metrics", description: "C+ to S+ scoring on APM, map awareness, resource efficiency" },
+      { title: "More Games", description: "Valorant, League of Legends, Dota 2" },
     ],
   },
   {
@@ -22,24 +24,25 @@ const columns = [
     subtitle: "On our radar",
     color: "zinc",
     items: [
-      { title: "Team Voice Comms", description: "Analyze team communication" },
-      { title: "Coaching Marketplace", description: "Connect with human coaches" },
+      { title: "Personalized Learning Paths", description: "Rank-specific skill trees like \"Gold to Platinum Path\"" },
+      { title: "Training Recommendations", description: "Link weaknesses to practice drills and workshop maps" },
+      { title: "Team Analysis", description: "Squad-level feedback for team coordination" },
     ],
   },
 ];
 
 const colorStyles = {
   green: {
-    header: "text-green-400",
+    header: "text-green-500",
     border: "border-green-500/30",
     bg: "bg-green-500/5",
     dot: "bg-green-500",
   },
   orange: {
-    header: "text-orange-400",
-    border: "border-orange-500/30",
-    bg: "bg-orange-500/5",
-    dot: "bg-orange-500",
+    header: "text-amber-400",
+    border: "border-amber-500/30",
+    bg: "bg-amber-500/5",
+    dot: "bg-amber-500",
   },
   zinc: {
     header: "text-zinc-400",
@@ -51,7 +54,7 @@ const colorStyles = {
 
 export function Roadmap() {
   return (
-    <section className="px-6 py-16 bg-gradient-to-b from-zinc-900 via-zinc-900 to-purple-950/10">
+    <section className="px-6 py-16">
       <div className="mx-auto max-w-6xl">
         <h2 className="text-center text-2xl font-bold text-white sm:text-3xl">
           Product Roadmap
@@ -60,7 +63,7 @@ export function Roadmap() {
           Our vision for the future of AI coaching
         </p>
 
-        <div className="mt-12 grid gap-6 sm:grid-cols-3">
+        <div className="mt-12 grid gap-6 sm:grid-cols-3 max-w-md sm:max-w-none mx-auto">
           {columns.map((column) => {
             const styles = colorStyles[column.color as keyof typeof colorStyles];
             return (

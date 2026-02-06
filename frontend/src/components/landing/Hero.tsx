@@ -2,27 +2,28 @@ import Link from "next/link";
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden px-6 py-24 sm:py-32">
-      {/* Subtle gradient background with purple/blue accents */}
-      <div className="absolute inset-0 -z-10 bg-gradient-to-br from-zinc-900 via-zinc-900 to-purple-950/30" />
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-orange-900/20 via-transparent to-transparent" />
-      <div className="absolute top-0 right-0 w-1/2 h-1/2 -z-10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-900/10 via-transparent to-transparent" />
-
-      <div className="mx-auto max-w-4xl text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
-          AI-Powered Game Coaching
+    <section className="relative pt-32 pb-20 px-6">
+      <div className="max-w-5xl mx-auto text-center">
+        <h1 className="text-6xl md:text-8xl font-bold tracking-tighter bg-gradient-to-br from-white via-white to-white/40 bg-clip-text text-transparent pb-4">
+          Master your
+          <br />
+          gameplay.
         </h1>
-        <p className="mt-6 text-lg leading-8 text-zinc-400">
-          Upload your gameplay video and get personalized, timestamped coaching tips in minutes.
-          Improve faster with insights from advanced AI analysis.
+        <p className="mt-6 text-xl text-zinc-500 max-w-2xl mx-auto leading-relaxed">
+          Forging analyzes your replays with military-grade precision. 
+          Stop guessing why you lost. Start winning.
         </p>
-        <div className="mt-10 flex items-center justify-center gap-x-6">
+        
+        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link
             href="/new"
-            className="rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-3 text-lg font-semibold text-white shadow-lg transition-all hover:from-orange-600 hover:to-amber-600 hover:shadow-orange-500/25"
+            className="h-12 px-8 rounded-full bg-white text-black font-semibold hover:bg-zinc-200 transition-colors flex items-center justify-center"
           >
             Analyze Your Game
           </Link>
+          <button className="h-12 px-8 rounded-full bg-transparent border border-zinc-800 text-zinc-300 font-medium hover:bg-white/5 transition-colors">
+            View Demo
+          </button>
         </div>
       </div>
     </section>
