@@ -10,6 +10,19 @@ interface AnalysisPendingViewProps {
   posterUrl?: string;
 }
 
+const STAGE_LABELS: Record<string, string> = {
+  parsing_demo: "Parsing replay data...",
+  downloading_video: "Downloading video...",
+  uploading_video: "Uploading video to Gemini...",
+  analyzing: "AI is analyzing your gameplay...",
+  generating_thumbnail: "Generating thumbnail...",
+  generating_audio: "Generating audio...",
+};
+
+function formatStage(stage: string): string {
+  return STAGE_LABELS[stage] || stage;
+}
+
 // Hardcoded tips to show while waiting
 const LOADING_TIPS: Record<"aoe2" | "cs2", string[]> = {
   aoe2: [
@@ -70,7 +83,7 @@ export function AnalysisPendingView({
             <h2 className="text-xl font-semibold text-white">
               Analyzing Your Gameplay
             </h2>
-            <p className="text-zinc-400 text-sm">{stage}</p>
+            <p className="text-zinc-400 text-sm">{formatStage(stage)}</p>
             <p className="text-zinc-500 text-xs">
               This usually takes 3-5 minutes
             </p>

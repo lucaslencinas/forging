@@ -95,6 +95,10 @@ async def run_analysis_pipeline(
     Returns:
         Tuple of (VideoAnalysisResponse, pipeline_metadata, gemini_file_info, video_tmp_path)
     """
+    # Stage: Downloading video from GCS
+    if on_stage_change:
+        await on_stage_change("downloading_video")
+
     # Download video from GCS (async to not block event loop)
     video_tmp_path = await gcs.download_to_temp_async(video_object_name)
 
