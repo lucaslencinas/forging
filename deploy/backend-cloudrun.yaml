@@ -17,11 +17,11 @@ spec:
         # Allow up to 10 concurrent requests per instance
         autoscaling.knative.dev/maxScale: "10"
         autoscaling.knative.dev/minScale: "0"
-        # Increase timeout for AI processing (5 minutes)
-        run.googleapis.com/timeout: "300s"
+        # Increase timeout for AI processing (10 minutes)
+        run.googleapis.com/timeout: "600s"
     spec:
       containerConcurrency: 10
-      timeoutSeconds: 300
+      timeoutSeconds: 600
       containers:
         # Updated to use Artifact Registry (gcr.io is deprecated)
         - image: us-central1-docker.pkg.dev/PROJECT_ID/forging/forging-backend:latest
@@ -30,7 +30,7 @@ spec:
           resources:
             limits:
               cpu: "2"
-              memory: "2Gi"
+              memory: "4Gi"
           env:
             - name: GOOGLE_CLOUD_PROJECT
               value: "PROJECT_ID"

@@ -30,12 +30,13 @@ export function RoundsProgressionV2({
     return rounds.reduce((sum, r) => sum + (r.end_seconds - r.start_seconds), 0);
   }, [rounds]);
 
-  // Count wins and losses based on status field
+  // Count wins and losses based on status field (unknown rounds are not counted)
   const stats = useMemo(() => {
     const wins = rounds.filter((r) => r.status === "win").length;
     const losses = rounds.filter((r) => r.status === "loss").length;
+    const unknown = rounds.filter((r) => r.status === "unknown").length;
     const deaths = rounds.filter((r) => r.death_seconds != null).length;
-    return { wins, losses, deaths };
+    return { wins, losses, unknown, deaths };
   }, [rounds]);
 
   // Determine if we need compact mode (small screens or many rounds)
@@ -58,6 +59,12 @@ export function RoundsProgressionV2({
             <span className="w-2 h-2 rounded-sm bg-red-600/70" />
             Loss
           </span>
+          {stats.unknown > 0 && (
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-sm bg-zinc-600" />
+              Unknown
+            </span>
+          )}
           {stats.deaths > 0 && (
             <span className="flex items-center gap-1">
               <span className="text-zinc-400">💀</span>
@@ -109,6 +116,7 @@ function RoundSegment({
   const width = ((round.end_seconds - round.start_seconds) / totalDuration) * 100;
   const isActive = currentTime >= round.start_seconds && currentTime <= round.end_seconds;
   const isWin = round.status === "win";
+  const isUnknown = round.status === "unknown";
   const isDeath = round.death_seconds != null;
 
   // Calculate death position within round
@@ -128,7 +136,9 @@ function RoundSegment({
         relative flex items-center justify-center transition-all group
         ${isWin
           ? "bg-gradient-to-b from-green-600/70 to-green-700/80"
-          : "bg-gradient-to-b from-red-700/50 to-red-800/60"
+          : isUnknown
+            ? "bg-gradient-to-b from-zinc-500/50 to-zinc-600/60"
+            : "bg-gradient-to-b from-red-700/50 to-red-800/60"
         }
         ${isActive ? "ring-1 ring-white/60 z-10 brightness-125" : ""}
         ${onSeek ? "cursor-pointer hover:brightness-110" : ""}
@@ -159,8 +169,8 @@ function RoundSegment({
       {isHovered && (
         <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-zinc-900/95 backdrop-blur-sm border border-white/20 rounded px-2 py-1 text-[10px] text-white whitespace-nowrap z-20 shadow-lg">
           <span className="font-semibold">R{round.round}</span>
-          <span className={`ml-1.5 ${isWin ? "text-green-400" : "text-red-400"}`}>
-            {isWin ? "Win" : "Loss"}
+          <span className={`ml-1.5 ${isWin ? "text-green-400" : isUnknown ? "text-zinc-400" : "text-red-400"}`}>
+            {isWin ? "Win" : isUnknown ? "Unknown" : "Loss"}
           </span>
           {isDeath && <span className="ml-1.5 text-zinc-400">💀 {round.death_time}</span>}
         </div>

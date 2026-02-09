@@ -11,19 +11,14 @@ const DEMO_SLIDE_ID = 8; // The "Let me show you how it works" slide
 // Demo actions (these are not slides, so we keep them as static content)
 const demoActions = [
   {
-    action: "Show Homepage",
-    script:
-      "Here's our live deployment. You can see the games we support, community analyses, and the upload button.",
-  },
-  {
     action: "Navigate to Upload",
     script:
-      "Upload is simple - drag and drop your replay file or video. We support demo files, game recordings, or raw video up to 30 minutes.",
+      "Upload is simple - select your game, drop your replay action file and video. Select a player and click upload.",
   },
   {
     action: "Show Completed Analysis",
     script:
-      "Here's a completed analysis. Notice the coaching tips - each one is timestamped to specific moments in the match.",
+      "After a few minutes, you will get a full analysis of your gameplay. Notice the coaching tips - each one is timestamped to specific moments in the match.",
   },
   {
     action: "Click Timestamp",
@@ -138,9 +133,8 @@ export default function ScriptPage() {
               <button
                 key={section.id}
                 onClick={() => setActiveSection(section.id)}
-                className={`px-4 py-2 rounded-lg border font-medium transition-all ${
-                  isActive ? sectionColors.active : sectionColors.inactive
-                }`}
+                className={`px-4 py-2 rounded-lg border font-medium transition-all ${isActive ? sectionColors.active : sectionColors.inactive
+                  }`}
               >
                 {section.label}
               </button>

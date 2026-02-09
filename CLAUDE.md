@@ -70,19 +70,9 @@ type Player = components["schemas"]["Player"];
 
 ## LLM Provider System
 
-The project supports multiple LLM providers with automatic fallback:
+The project uses Gemini as its LLM provider:
 
-- **Gemini** (default) - `GEMINI_API_KEY` + `GEMINI_ENABLED`
-- **Claude** - `ANTHROPIC_API_KEY` + `CLAUDE_ENABLED`
-- **OpenAI** - `OPENAI_API_KEY` + `OPENAI_ENABLED`
-
-Each provider tries multiple models in order if one fails (e.g., rate limits).
-
-### Adding a New Provider
-
-1. Create `backend/services/llm/newprovider.py` implementing `LLMProvider`
-2. Add to `PROVIDERS` dict in `backend/services/llm/factory.py`
-3. Add to `DEFAULT_PROVIDER_ORDER` list
+- **Gemini** - `GEMINI_API_KEY` + `GEMINI_ENABLED`
 
 ## CLI Tool
 
@@ -98,7 +88,7 @@ python analyze.py replay.aoe2record
 python analyze.py replay.aoe2record --parse-only
 
 # Specific provider
-python analyze.py replay.aoe2record --provider claude
+python analyze.py replay.aoe2record --provider gemini
 ```
 
 ## Project Structure

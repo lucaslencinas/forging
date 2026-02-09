@@ -25,7 +25,7 @@ class LLMProvider(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Provider name (e.g., 'gemini', 'claude', 'openai')."""
+        """Provider name (e.g., 'gemini')."""
         pass
 
     @abstractmethod

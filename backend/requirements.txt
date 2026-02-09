@@ -10,11 +10,9 @@ mgz==1.8.44
 demoparser2>=0.40.0
 awpy>=2.0.0
 
-# LLM providers (at least one required)
+# LLM providers
 google-generativeai==0.8.0  # Gemini (legacy SDK for video analysis)
 google-genai>=1.55.0        # Gemini (new SDK for TTS + Interactions API)
-anthropic>=0.40.0           # Claude (optional)
-openai>=1.50.0              # OpenAI (optional)
 
 # Google Cloud
 google-cloud-storage>=2.14.0

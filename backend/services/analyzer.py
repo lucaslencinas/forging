@@ -123,7 +123,7 @@ async def analyze_game(
     Args:
         game_type: "aoe2" or "cs2"
         game_data: Parsed game data from the respective parser
-        provider_name: LLM provider to use (gemini, claude, openai). Auto-selects if None.
+        provider_name: LLM provider to use (gemini). Auto-selects if None.
         model: Specific model to use. Uses provider default if None.
 
     Returns:
@@ -139,7 +139,7 @@ async def analyze_game(
             raw_response="",
             model="none",
             provider=provider.name,
-            error=f"No LLM provider available. Configure one of: GEMINI_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY. Available: {available}"
+            error=f"No LLM provider available. Set GEMINI_API_KEY to enable the Gemini provider. Available: {available}"
         )
 
     # Format the data and prompts

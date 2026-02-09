@@ -1,3 +1,5 @@
+import { APP_PATHS_MANIFEST } from "next/constants";
+
 export type SlideType =
   | "hook-industry"
   | "hook-growth"
@@ -399,7 +401,7 @@ export const slides: Slide[] = [
     },
     notes: "Market size justifies the solution",
     script:
-      "The esports market is nearly $2.5 billion in 2025 with 15-20% annual growth. Coaching and improvement tools are a growing segment of this ecosystem.",
+      "Market size justifies the solution. Coaching and improvement tools are a growing segment of this ecosystem.",
   },
   // === COMPETITORS SECTION ===
   {
@@ -432,7 +434,7 @@ export const slides: Slide[] = [
     },
     notes: "Show we know the space and have a unique angle",
     script:
-      "There are competitors in this space. Trophi focuses on racing sims. Omnic covers a few FPS titles. iTero was just acquired by GIANTX for millions - and it only supports League of Legends. Our differentiator: FORGING is game-agnostic. The same platform works across genres.",
+      "There are competitors in this space but most of them focus on a single game or a single genre. FORGING is game-agnostic. The same platform works across genres.",
   },
   // === ARCHITECTURE SECTION ===
   {
@@ -451,7 +453,7 @@ export const slides: Slide[] = [
     },
     notes: "Technical credibility - simple pipeline view",
     script:
-      "The pipeline is simple: upload your replay or video, we parse it with game-specific extractors, analyze with Gemini's multimodal AI, and generate timestamped coaching tips.",
+      "The pipeline is simple: you upload your replay or video, we parse it with game-specific extractors, analyze it with Gemini's multimodal AI, and generate timestamped coaching tips.",
   },
   {
     id: 12,
@@ -477,7 +479,7 @@ export const slides: Slide[] = [
     },
     notes: "Emphasize Gemini capabilities - 6 features",
     script:
-      "What makes this possible is Gemini. The File API handles 700MB videos. Multimodal analysis combines video with replay data. Thinking mode enables deep reasoning. The Interactions API chains our Observer and Validator agents. TTS generates voice coaching. And structured output ensures valid JSON for the UI.",
+      "What makes this possible is Gemini. We built this platform using the File API, Multimodal capabilities, multiple Thinking levels, the Interactions API, the Text to Speech models and Structured Outputs where needed.",
   },
   // === ROADMAP SECTION ===
   {
@@ -521,7 +523,7 @@ export const slides: Slide[] = [
     },
     notes: "Horizontal timeline showing what's done and what's next",
     script:
-      "Video analysis, voice coaching, and chat are live today. Next up: skill progression tracking. Future features include team voice analysis and input optimization - like detecting when you should set up hotkeys.",
+      "Currently we have Video analysis, voice coaching, and chat. Soon, we will build a skill progression tracking. And later on we will include team voice and keyboard/mouse analysis.",
   },
   // === CLOSING SECTION ===
   {
@@ -535,7 +537,6 @@ export const slides: Slide[] = [
       badge: "Built for Gemini API Developer Competition",
     },
     notes: "Strong close - tie back to hackathon",
-    script:
-      "FORGING is the future of accessible esports coaching. Built specifically for Gemini. Thank you.",
+    script: "FORGING is the future of accessible esports coaching. Thank you.",
   },
 ];

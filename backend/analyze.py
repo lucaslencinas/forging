@@ -4,8 +4,7 @@ CLI tool for analyzing game replays.
 
 Usage:
     python analyze.py replay.aoe2record
-    python analyze.py replay.aoe2record --provider claude
-    python analyze.py demo.dem --provider openai --model gpt-4o-mini
+    python analyze.py demo.dem --provider gemini
 """
 import argparse
 import asyncio
@@ -77,7 +76,7 @@ async def main():
     )
     parser.add_argument(
         "--provider", "-p",
-        choices=["gemini", "claude", "openai"],
+        choices=["gemini"],
         help="LLM provider to use (auto-selects if not specified)"
     )
     parser.add_argument(
@@ -122,7 +121,7 @@ async def main():
             print(f"  - {p}")
         if not available:
             print("  (none configured)")
-            print("\nSet one of: GEMINI_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY")
+            print("\nSet GEMINI_API_KEY to enable the Gemini provider")
         return
 
     # Validate input file

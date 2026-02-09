@@ -6,21 +6,15 @@ from typing import Optional
 
 from .base import LLMProvider, LLMResponse
 from .gemini import GeminiProvider
-from .claude import ClaudeProvider
-from .openai import OpenAIProvider
 
 logger = logging.getLogger(__name__)
 
 # Provider registry
 PROVIDERS = {
     "gemini": GeminiProvider,
-    "claude": ClaudeProvider,
-    "openai": OpenAIProvider,
 }
 
-# Default order for fallback
-# Gemini is primary, OpenAI is fallback for rate limits/errors
-DEFAULT_PROVIDER_ORDER = ["gemini", "openai"]
+DEFAULT_PROVIDER_ORDER = ["gemini"]
 
 
 def get_available_providers() -> list[str]:
