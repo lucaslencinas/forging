@@ -28,9 +28,9 @@ Key differentiators:
 | 1 | **File API** | Upload gameplay videos (MP4, up to 700MB). Video uploaded once, reused across entire agent chain. |
 | 2 | **Multimodal Video Analysis** | Gemini 3 Pro watches gameplay video alongside replay data. Identifies mistakes and timestamps them. |
 | 3 | **Thinking (Extended Reasoning)** | `thinking_level="high"` for Observer and Validator agents. Enables deeper analysis and careful hallucination detection. |
-| 4 | **Interactions API** | `previous_interaction_id` chains Observer → Validator → Chat. Video and context persist on Gemini's servers — no re-upload. |
+| 4 | **Interactions API** | `previous_interaction_id` chains Observer → Validator → Chat. Video and context persist on Gemini's servers — no re-upload. Server-managed thought signatures preserve reasoning context across the agent chain. |
 | 5 | **Text-to-Speech** | Gemini 2.5 Flash TTS with "Charon" voice generates spoken coaching tips as MP3 audio. |
-| 6 | **Structured Output** | JSON schema enforcement ensures deterministic tip format: timestamp, category, severity, observation, fix, reasoning. |
+| 6 | **Structured Output** | Native `response_schema` enforcement ensures deterministic tip format at every pipeline step — no regex JSON extraction needed. |
 
 ### Models Used
 
@@ -63,7 +63,7 @@ flowchart TD
     Chat --> Frontend
 ```
 
-The **Interactions API** is central to the architecture: the gameplay video is uploaded once to Gemini's File API and stays in context across the entire Observer → Validator → Chat chain via `previous_interaction_id`. This eliminates redundant video re-uploads and keeps the full conversation history available for follow-up questions.
+The **Interactions API** is central to the architecture: the gameplay video is uploaded once to Gemini's File API and stays in context across the entire Observer → Validator → Chat chain via `previous_interaction_id`. This eliminates redundant video re-uploads and preserves reasoning context (thought signatures) across multi-agent steps. When a user asks a follow-up question in chat, the conversation chains from the Validator's interaction — inheriting the full pipeline context without re-sending anything.
 
 ## Features
 

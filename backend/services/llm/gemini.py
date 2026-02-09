@@ -161,7 +161,7 @@ class GeminiProvider(LLMProvider):
 
                 # Try models in order until one works
                 models_to_try = (
-                    [self.model] if self.model not in self.MODELS else self.MODELS
+                    [self.model] if self.model not in self.FALLBACK_MODELS else self.FALLBACK_MODELS
                 )
 
                 for model_name in models_to_try:

@@ -10,15 +10,17 @@ AI-powered gaming coach - get pro-level analysis for any competitive game, witho
 
 ## Gemini Integration (~200 words)
 
-Forging leverages Gemini 3's multimodal capabilities to analyze gameplay videos across different game genres - working like a human coach who can watch any game.
+Forging is built as a multi-agent system on top of Gemini 3's Interactions API — not a prompt wrapper.
 
-**Multimodal Video Understanding**: Gemini 3 watches recorded gameplay frame-by-frame, understanding game state purely from visuals. For an RTS like Age of Empires II, it reads resource bars, unit compositions, and map control. For an FPS like Counter-Strike 2, it analyzes crosshair placement, positioning, and utility usage. No game API required - it sees what a coach sees.
+**2-Agent Pipeline with Interaction Chaining**: An Observer agent analyzes gameplay video with `thinking_level="high"`, generating 10-20 timestamped tips. Its `interaction_id` chains to a Validator agent that cross-checks each tip against the video, assigning confidence scores 1-10. Only tips scoring 8+ survive. The video is uploaded once via the **File API** and persists across the entire chain — no re-upload needed.
 
-**Long Context Window**: Competitive matches range from 5-minute CS2 rounds to 40-minute AoE2 games. Gemini 3's extended context processes entire matches without chunking, connecting early decisions to late-game outcomes.
+**Multimodal Video Understanding**: Gemini 3 Pro watches gameplay frame-by-frame alongside parsed replay data. For CS2, it reads HUD elements, crosshair placement, and positioning. For AoE2, it tracks resources, unit compositions, and build orders. No game API required.
 
-**Structured Output**: Analysis returns consistent JSON, enabling a polished UI with timestamped feedback, game summaries, and prioritized improvements. This isn't a chatbot - it's an integrated coaching platform.
+**Structured Output with `response_schema`**: Native JSON schema enforcement ensures deterministic output format at every pipeline step — timestamps, categories, severity, reasoning — directly renderable in the UI.
 
-The combination makes Forging uniquely possible. Video understanding provides the "eyes" of a coach, long context provides game-length memory, and structured output provides actionable format. The same architecture analyzes completely different genres - proving Gemini 3's multimodal capabilities generalize across visual domains.
+**Extended Thinking**: Both agents use high thinking levels for deep reasoning. The Observer reasons about gameplay patterns; the Validator reasons about whether each observation is actually visible in the video or a hallucination.
+
+**Follow-up Chat**: Chat chains from the Validator's `interaction_id`, inheriting full pipeline context (video + analysis) without re-sending anything.
 
 ---
 
@@ -49,10 +51,10 @@ Same platform, different games - demonstrating the extensible architecture.
 
 ### How I built it
 
-- **Backend**: Python/FastAPI with game-specific analysis modules
-- **Frontend**: Next.js/React with TypeScript for the coaching dashboard
-- **Infrastructure**: Google Cloud Run + Cloud Storage for scalable deployment
-- **AI**: Gemini 3 API with multimodal video input and structured JSON output
+- **Backend**: Python/FastAPI with a 2-agent analysis pipeline (Observer → Validator) using the Gemini Interactions API
+- **Frontend**: Next.js/React with TypeScript — video player, timestamped tips, follow-up chat
+- **Infrastructure**: Google Cloud Run + Cloud Storage + Firestore
+- **AI**: Gemini 3 Pro with Interactions API chaining, extended thinking, structured output (`response_schema`), File API for video, and Gemini 2.5 Flash TTS for voice coaching
 
 ### Challenges I ran into
 
@@ -94,6 +96,7 @@ The goal: transform from post-game analysis into a complete coaching platform th
 
 ## Built With
 - gemini-3
+- gemini-interactions-api
 - python
 - fastapi
 - nextjs
@@ -101,10 +104,11 @@ The goal: transform from post-game analysis into a complete coaching platform th
 - typescript
 - google-cloud-run
 - google-cloud-storage
+- google-cloud-firestore
 
 ## Try it out
-[URL to deployed app]
+[https://forging-frontend-nht57oxpca-uc.a.run.app](https://forging-frontend-nht57oxpca-uc.a.run.app)
 
 ## Links
-- [GitHub Repository](https://github.com/...)
-- [Demo Video](https://youtube.com/...)
+- [GitHub Repository](https://github.com/lucaslencinas/forging)
+- Demo Video (link TBD)
