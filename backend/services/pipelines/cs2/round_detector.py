@@ -236,11 +236,11 @@ def build_rounds_timeline_from_demo(
     summary = demo_data.get("summary", {})
     rounds = demo_data.get("rounds", [])
     kills = demo_data.get("kills", [])
-    players = demo_data.get("players", [])
+    players = summary.get("players", [])
     tickrate = summary.get("tickrate", 64)
 
     if not rounds:
-        logger.warning("[build_rounds_timeline] No rounds data available")
+        logger.warning("[GAME-ANALYSIS] [build_rounds_timeline] No rounds data available")
         return []
 
     # video_start_tick is set by filter_demo_data_by_rounds
@@ -250,7 +250,7 @@ def build_rounds_timeline_from_demo(
         first_round = rounds[0]
         video_start_tick = first_round.get("start_tick", 0)
         logger.info(
-            f"[build_rounds_timeline] No video_start_tick set, "
+            f"[GAME-ANALYSIS] [build_rounds_timeline] No video_start_tick set, "
             f"using first round start_tick: {video_start_tick}"
         )
 
@@ -258,16 +258,17 @@ def build_rounds_timeline_from_demo(
     if pov_player is None:
         pov_player = demo_data.get("pov_player")
 
-    # Find POV player's starting side (CT or T)
+    # Find POV player's starting side (CT or T), normalized to uppercase
     pov_starting_side = None
     if pov_player:
         pov_lower = pov_player.lower()
         for player in players:
             if player.get("name", "").lower() == pov_lower:
-                pov_starting_side = player.get("starting_side")
+                side = player.get("starting_side", "")
+                pov_starting_side = side.upper() if side else None
                 break
 
-    logger.info(f"[build_rounds_timeline] POV player {pov_player} starting side: {pov_starting_side}")
+    logger.info(f"[GAME-ANALYSIS] [build_rounds_timeline] POV player {pov_player} starting side: {pov_starting_side}")
 
     # Build death lookup for POV player (round_num -> death_tick)
     death_by_round: dict[int, int] = {}
@@ -283,7 +284,7 @@ def build_rounds_timeline_from_demo(
                     death_by_round[round_num] = death_tick
 
     logger.info(
-        f"[build_rounds_timeline] Building timeline for {len(rounds)} rounds, "
+        f"[GAME-ANALYSIS] [build_rounds_timeline] Building timeline for {len(rounds)} rounds, "
         f"pov_player={pov_player}, deaths={len(death_by_round)}"
     )
 
@@ -292,7 +293,8 @@ def build_rounds_timeline_from_demo(
         round_num = rnd.get("round_num", 0)
         start_tick = rnd.get("start_tick") or 0
         end_tick = rnd.get("end_tick") or 0
-        round_winner = rnd.get("winner")  # "CT" or "T"
+        round_winner_raw = rnd.get("winner") or ""
+        round_winner = round_winner_raw.upper() if round_winner_raw else None
 
         # Calculate video timestamps (seconds from video start)
         start_seconds = max(0.0, (start_tick - video_start_tick) / tickrate)
@@ -340,6 +342,6 @@ def build_rounds_timeline_from_demo(
             "status": status,
         })
 
-    logger.info(f"[build_rounds_timeline] Built timeline with {len(timeline)} rounds")
+    logger.info(f"[GAME-ANALYSIS] [build_rounds_timeline] Built timeline with {len(timeline)} rounds")
 
     return timeline
