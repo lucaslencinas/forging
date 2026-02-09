@@ -369,7 +369,7 @@ def download_to_temp(object_name: str, temp_dir: Optional[str] = None) -> str:
     fd, temp_path = tempfile.mkstemp(suffix=extension, dir=temp_dir)
     os.close(fd)
 
-    logger.info(f"Downloading {object_name} via signed URL to {temp_path}")
+    logger.info(f"[GAME-ANALYSIS] Downloading {object_name} via signed URL to {temp_path}")
 
     # Download using the signed URL with timeout and retry
     # Large videos (500MB) may take several minutes to download
@@ -388,15 +388,15 @@ def download_to_temp(object_name: str, temp_dir: Optional[str] = None) -> str:
             break  # Success, exit retry loop
 
         except requests.exceptions.Timeout as e:
-            logger.warning(f"Download timeout (attempt {attempt + 1}/{max_retries}): {e}")
+            logger.warning(f"[GAME-ANALYSIS] Download timeout (attempt {attempt + 1}/{max_retries}): {e}")
             if attempt == max_retries - 1:
                 raise ValueError(f"Download timed out after {max_retries} attempts")
         except requests.exceptions.RequestException as e:
-            logger.warning(f"Download error (attempt {attempt + 1}/{max_retries}): {e}")
+            logger.warning(f"[GAME-ANALYSIS] Download error (attempt {attempt + 1}/{max_retries}): {e}")
             if attempt == max_retries - 1:
                 raise ValueError(f"Download failed after {max_retries} attempts: {e}")
 
-    logger.info(f"Download complete: {os.path.getsize(temp_path)} bytes")
+    logger.info(f"[GAME-ANALYSIS] Download complete: {os.path.getsize(temp_path)} bytes")
 
     return temp_path
 

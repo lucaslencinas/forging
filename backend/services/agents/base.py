@@ -142,28 +142,31 @@ class BaseAgent(ABC):
 
         # Log prompt sizes for debugging context usage
         logger.info(
-            f"[{self.name}] Processing with thinking_level={self.thinking_level}"
+            f"[GAME-ANALYSIS] [{self.name}] Processing with thinking_level={self.thinking_level}"
         )
-        logger.info(f"[{self.name}] System prompt: {len(system_prompt)} chars")
-        logger.info(f"[{self.name}] User prompt: {len(user_prompt)} chars")
+        logger.info(f"[GAME-ANALYSIS] [{self.name}] System prompt: {len(system_prompt)} chars")
+        logger.info(f"[GAME-ANALYSIS] [{self.name}] User prompt: {len(user_prompt)} chars")
         logger.info(
-            f"[{self.name}] Uses video: {self.uses_video and self.video_file is not None}"
+            f"[GAME-ANALYSIS] [{self.name}] Uses video: {self.uses_video and self.video_file is not None}"
         )
         if previous_interaction_id:
             logger.info(
-                f"[{self.name}] Chaining from previous interaction (context may accumulate)"
+                f"[GAME-ANALYSIS] [{self.name}] Chaining from previous interaction (context may accumulate)"
             )
 
-        # Build generation config with thinking level and optional response schema
+        # Build generation config (Interactions API only supports model params here)
         generation_config = {
             "thinking_level": self.thinking_level,
         }
 
-        # Add response schema for native structured output if defined
+        # Structured output params are top-level in the Interactions API,
+        # not inside generation_config
+        response_mime_type = None
+        response_format = None
         if self.response_schema:
-            generation_config["response_mime_type"] = "application/json"
-            generation_config["response_schema"] = self.response_schema
-            logger.info(f"[{self.name}] Using structured output with response_schema")
+            response_mime_type = "application/json"
+            response_format = self.response_schema
+            logger.info(f"[GAME-ANALYSIS] [{self.name}] Using structured output with response_format")
 
         # Build input content
         # Interactions API requires explicit type fields
@@ -177,7 +180,7 @@ class BaseAgent(ABC):
                 },
             ]
             logger.info(
-                f"[{self.name}] Including video in request: {self.video_file.uri}"
+                f"[GAME-ANALYSIS] [{self.name}] Including video in request: {self.video_file.uri}"
             )
         else:
             input_content = [{"type": "text", "text": user_prompt}]
@@ -188,18 +191,23 @@ class BaseAgent(ABC):
             # Create interaction (chains to previous if provided)
             if previous_interaction_id:
                 logger.info(
-                    f"[{self.name}] Chaining from interaction: {previous_interaction_id[:20]}..."
+                    f"[GAME-ANALYSIS] [{self.name}] Chaining from interaction: {previous_interaction_id[:20]}..."
                 )
 
             # Run synchronous API call in thread pool to avoid blocking event loop
             def _sync_create_interaction():
-                return self.client.interactions.create(
-                    model=os.getenv("GEMINI_MODEL", "gemini-3-pro-preview"),
-                    input=input_content,
-                    system_instruction=system_prompt,
-                    generation_config=generation_config,
-                    previous_interaction_id=previous_interaction_id,
-                )
+                create_params = {
+                    "model": os.getenv("GEMINI_MODEL", "gemini-3-pro-preview"),
+                    "input": input_content,
+                    "system_instruction": system_prompt,
+                    "generation_config": generation_config,
+                    "previous_interaction_id": previous_interaction_id,
+                }
+                if response_mime_type:
+                    create_params["response_mime_type"] = response_mime_type
+                if response_format:
+                    create_params["response_format"] = response_format
+                return self.client.interactions.create(**create_params)
 
             interaction = await asyncio.to_thread(_sync_create_interaction)
 
@@ -236,7 +244,7 @@ class BaseAgent(ABC):
 
             if not response_text:
                 logger.warning(
-                    f"[{self.name}] Could not extract text. Interaction: {interaction}"
+                    f"[GAME-ANALYSIS] [{self.name}] Could not extract text. Interaction: {interaction}"
                 )
 
             self.last_raw_response = response_text
@@ -245,9 +253,9 @@ class BaseAgent(ABC):
             # Extract thoughts if available
             if hasattr(interaction, "thoughts") and interaction.thoughts:
                 self.last_thoughts = str(interaction.thoughts)
-                logger.info(f"[{self.name}] Captured reasoning thoughts")
+                logger.info(f"[GAME-ANALYSIS] [{self.name}] Captured reasoning thoughts")
 
-            logger.info(f"[{self.name}] Got response ({len(response_text)} chars)")
+            logger.info(f"[GAME-ANALYSIS] [{self.name}] Got response ({len(response_text)} chars)")
 
             # Parse response
             parsed = self.parse_response(response_text, input_data)
@@ -255,7 +263,7 @@ class BaseAgent(ABC):
             return parsed, interaction.id
 
         except Exception as e:
-            logger.error(f"[{self.name}] Error: {e}")
+            logger.error(f"[GAME-ANALYSIS] [{self.name}] Error: {e}")
             raise
 
     def format_replay_data_for_prompt(self) -> str:
@@ -556,17 +564,17 @@ class BaseAgent(ABC):
                     lines.append("")
 
                 # Log the timeline for debugging
-                logger.info(f"[cs2_replay] POV Player: {pov_player}")
+                logger.info(f"[GAME-ANALYSIS] [cs2_replay] POV Player: {pov_player}")
                 for rnd in round_timeline:
                     if rnd["death_time"]:
                         logger.info(
-                            f"[cs2_replay] Round {rnd['round']}: "
+                            f"[GAME-ANALYSIS] [cs2_replay] Round {rnd['round']}: "
                             f"{rnd['start_time']}-{rnd['end_time']}, "
                             f"DIED at {rnd['death_time']}"
                         )
                     else:
                         logger.info(
-                            f"[cs2_replay] Round {rnd['round']}: "
+                            f"[GAME-ANALYSIS] [cs2_replay] Round {rnd['round']}: "
                             f"{rnd['start_time']}-{rnd['end_time']}, SURVIVED"
                         )
         else:
@@ -1043,7 +1051,7 @@ async def upload_video_to_gemini(client: genai.Client, video_path: str) -> Any:
     """
     import asyncio
 
-    logger.info(f"Uploading video to Gemini: {video_path}")
+    logger.info(f"[GAME-ANALYSIS] Uploading video to Gemini: {video_path}")
 
     # Run synchronous upload in thread pool to avoid blocking event loop
     def _sync_upload():
@@ -1054,7 +1062,7 @@ async def upload_video_to_gemini(client: genai.Client, video_path: str) -> Any:
 
     video_file = await asyncio.to_thread(_sync_upload)
 
-    logger.info(f"Video uploaded: {video_file.name}, waiting for ACTIVE state...")
+    logger.info(f"[GAME-ANALYSIS] Video uploaded: {video_file.name}, waiting for ACTIVE state...")
 
     # Wait for file to become ACTIVE
     max_wait = 300  # 5 minutes max
@@ -1069,12 +1077,12 @@ async def upload_video_to_gemini(client: genai.Client, video_path: str) -> Any:
         )
 
         if state == "ACTIVE":
-            logger.info(f"Video file is ACTIVE: {video_file.name}")
+            logger.info(f"[GAME-ANALYSIS] Video file is ACTIVE: {video_file.name}")
             return file_info
         elif state == "FAILED":
             raise RuntimeError(f"Video file processing failed: {video_file.name}")
 
-        logger.info(f"Video state: {state}, waiting...")
+        logger.info(f"[GAME-ANALYSIS] Video state: {state}, waiting...")
         await asyncio.sleep(5)
         waited += 5
 

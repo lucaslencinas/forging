@@ -100,23 +100,30 @@ async def run_analysis_pipeline(
         await on_stage_change("downloading_video")
 
     # Download video from GCS (async to not block event loop)
+    logger.info(f"[GAME-ANALYSIS] Downloading video from GCS: {video_object_name}")
     video_tmp_path = await gcs.download_to_temp_async(video_object_name)
+    video_size_mb = os.path.getsize(video_tmp_path) / (1024 * 1024)
+    logger.info(f"[GAME-ANALYSIS] Video downloaded: {video_size_mb:.1f}MB -> {video_tmp_path}")
 
     # Stage: Uploading video to Gemini
     if on_stage_change:
         await on_stage_change("uploading_video")
 
     # Upload video to Gemini
+    logger.info(f"[GAME-ANALYSIS] Uploading video to Gemini File API...")
     client = get_gemini_client()
     video_file = await upload_video_to_gemini(client, video_tmp_path)
+    logger.info(f"[GAME-ANALYSIS] Video uploaded to Gemini: {video_file.name}")
 
     # Stage: Analyzing gameplay
     if on_stage_change:
         await on_stage_change("analyzing")
 
     # Create and run game-specific pipeline
+    logger.info(f"[GAME-ANALYSIS] Creating {game_type} pipeline...")
     pipeline = PipelineFactory.create(game_type, video_file, replay_data)
     output = await pipeline.analyze()
+    logger.info(f"[GAME-ANALYSIS] Pipeline returned {len(output.tips)} tips")
 
     # Convert pipeline tips to TimestampedTip
     # Get reasoning from observer output (matched by tip ID)
@@ -505,10 +512,11 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
     This runs after the initial response is sent to the client.
     """
     try:
-        logger.info(f"Starting background analysis for {analysis_id}")
+        logger.info(f"[GAME-ANALYSIS] Starting background analysis for {analysis_id}")
 
         # Helper to update stage in Firestore
         async def update_stage(stage: str):
+            logger.info(f"[GAME-ANALYSIS] [{analysis_id}] Stage -> {stage}")
             await firestore.update_analysis(analysis_id, {"stage": stage})
 
         # Stage 1: Parsing demo/replay
@@ -524,27 +532,48 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
 
         if replay_object_name:
             try:
+                logger.info(f"[GAME-ANALYSIS] [{analysis_id}] Downloading replay from GCS: {replay_object_name}")
                 replay_tmp_path = await gcs.download_to_temp_async(replay_object_name)
+                logger.info(f"[GAME-ANALYSIS] [{analysis_id}] Replay downloaded, parsing as {game_type}...")
                 if game_type == "aoe2":
                     replay_data = await asyncio.to_thread(parse_aoe2_replay, replay_tmp_path)
                 elif game_type == "cs2":
                     replay_data = await asyncio.to_thread(parse_cs2_demo, replay_tmp_path)
             except Exception as e:
-                logger.warning(f"Failed to parse replay: {e}")
+                logger.warning(f"[GAME-ANALYSIS] [{analysis_id}] Failed to parse replay: {e}")
             finally:
                 if replay_tmp_path and os.path.exists(replay_tmp_path):
                     os.unlink(replay_tmp_path)
+
+        # Log replay parse results
+        if replay_data:
+            summary = replay_data.get("summary", {})
+            players = summary.get("players", [])
+            player_names = [p.get("name", "?") for p in players]
+            logger.info(
+                f"[GAME-ANALYSIS] [{analysis_id}] Replay parsed successfully: "
+                f"map={summary.get('map', '?')}, duration={summary.get('duration', '?')}, "
+                f"players={player_names}"
+            )
+        else:
+            logger.info(f"[GAME-ANALYSIS] [{analysis_id}] No replay data available")
 
         # Pass POV player through replay data for CS2
         if replay_data and request_data.get("pov_player"):
             replay_data["pov_player"] = request_data["pov_player"]
 
         # Run video analysis using unified pipeline (stages 2-5 handled inside)
+        logger.info(f"[GAME-ANALYSIS] [{analysis_id}] Starting analysis pipeline for {game_type}")
         result, pipeline_metadata, gemini_file_info, video_tmp_path = await run_analysis_pipeline(
             video_object_name=video_object_name,
             replay_data=replay_data,
             game_type=game_type,
             on_stage_change=update_stage,
+        )
+
+        logger.info(
+            f"[GAME-ANALYSIS] [{analysis_id}] Pipeline complete: "
+            f"{len(result.tips)} tips, model={result.model_used}, provider={result.provider}"
         )
 
         # Extract player names and game info from replay data
@@ -597,7 +626,7 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
         thumbnail_tmp_path = None
         try:
             if result.tips and video_tmp_path and os.path.exists(video_tmp_path):
-                logger.info("Generating thumbnail from video (reusing pipeline download)...")
+                logger.info(f"[GAME-ANALYSIS] [{analysis_id}] Generating thumbnail from video...")
                 tips_for_thumbnail = [{"timestamp": tip.timestamp_display} for tip in result.tips]
                 # Run ffmpeg thumbnail extraction in thread pool
                 thumbnail_tmp_path = await asyncio.to_thread(
@@ -610,9 +639,9 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
                         gcs.upload_file, thumbnail_tmp_path, thumbnail_object_name, "image/jpeg"
                     )
                     thumbnail_url = thumbnail_object_name
-                    logger.info(f"Thumbnail uploaded: {thumbnail_object_name}")
+                    logger.info(f"[GAME-ANALYSIS] [{analysis_id}] Thumbnail uploaded: {thumbnail_object_name}")
         except Exception as e:
-            logger.warning(f"Thumbnail generation failed, using fallback: {e}")
+            logger.warning(f"[GAME-ANALYSIS] [{analysis_id}] Thumbnail generation failed, using fallback: {e}")
             thumbnail_url = f"fallback/{game_type}.jpg"
         finally:
             # Clean up video temp file (no longer needed after thumbnail)
@@ -628,16 +657,16 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
             await update_stage("generating_audio")
             try:
                 from services.tts import generate_tips_audio
-                logger.info(f"Generating TTS audio for {len(result.tips)} tips...")
+                logger.info(f"[GAME-ANALYSIS] [{analysis_id}] Generating TTS audio for {len(result.tips)} tips...")
                 audio_object_names = generate_tips_audio(
                     [{"tip": tip.tip} for tip in result.tips],
                     analysis_id
                 )
-                logger.info(f"Generated {len(audio_object_names)} audio files")
+                logger.info(f"[GAME-ANALYSIS] [{analysis_id}] Generated {len(audio_object_names)} audio files")
             except Exception as e:
-                logger.warning(f"TTS generation failed (continuing without audio): {e}")
+                logger.warning(f"[GAME-ANALYSIS] [{analysis_id}] TTS generation failed (continuing without audio): {e}")
         else:
-            logger.info("TTS generation disabled (set TTS_ENABLED=true to enable)")
+            logger.info(f"[GAME-ANALYSIS] [{analysis_id}] TTS generation skipped (disabled)")
                 # Continue without audio - not critical
 
         # Update Firestore with complete analysis
@@ -673,10 +702,10 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
             updates["aoe2_content"] = result.aoe2_content.model_dump()
 
         await firestore.update_analysis(analysis_id, updates)
-        logger.info(f"Background analysis complete for {analysis_id}")
+        logger.info(f"[GAME-ANALYSIS] [{analysis_id}] Analysis complete and saved to Firestore")
 
     except Exception as e:
-        logger.exception(f"Background analysis failed for {analysis_id}: {e}")
+        logger.exception(f"[GAME-ANALYSIS] [{analysis_id}] Background analysis FAILED: {e}")
         # Update status to error
         await firestore.update_analysis(analysis_id, {
             "status": "error",
@@ -734,7 +763,7 @@ async def create_analysis(
     }
 
     await firestore.save_analysis(analysis_record)
-    logger.info(f"Created analysis {analysis_id} with status=processing")
+    logger.info(f"[GAME-ANALYSIS] [{analysis_id}] Created analysis record: game_type={request.game_type}, creator={request.creator_name}")
 
     # Start background task using asyncio.create_task for TRUE async execution
     # This returns immediately without waiting for the task to complete

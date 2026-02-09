@@ -62,10 +62,10 @@ class CS2Pipeline(BasePipeline):
         """
         start_time = time.time()
 
-        logger.info("=" * 60)
-        logger.info("CS2 PIPELINE STARTING")
-        logger.info("=" * 60)
-        logger.info(f"    Video: {self.video_file.name}")
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
+        logger.info("[GAME-ANALYSIS] CS2 PIPELINE STARTING")
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
+        logger.info(f"[GAME-ANALYSIS] Video: {self.video_file.name}")
 
         # ======================================================================
         # Step 0: Round Detection
@@ -73,9 +73,9 @@ class CS2Pipeline(BasePipeline):
         filtered_replay_data = self.replay_data
         round_detection_time = 0
 
-        logger.info("\n" + "=" * 60)
-        logger.info("[0/3] ROUND DETECTOR - Detecting rounds in video")
-        logger.info("=" * 60)
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
+        logger.info("[GAME-ANALYSIS] [0/3] ROUND DETECTOR - Detecting rounds in video")
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
         step_start = time.time()
 
         round_info = await detect_video_rounds(
@@ -84,12 +84,12 @@ class CS2Pipeline(BasePipeline):
         )
 
         round_detection_time = time.time() - step_start
-        logger.info(f"[round_detector] Complete in {round_detection_time:.1f}s")
+        logger.info(f"[GAME-ANALYSIS] [round_detector] Complete in {round_detection_time:.1f}s")
 
         if round_info.get("detected"):
             first_round = round_info.get("first_round")
             last_round = round_info.get("last_round")
-            logger.info(f"[round_detector] Video covers rounds {first_round} - {last_round}")
+            logger.info(f"[GAME-ANALYSIS] [round_detector] Video covers rounds {first_round} - {last_round}")
 
             # Filter the demo data
             filtered_replay_data = filter_demo_data_by_rounds(
@@ -98,7 +98,7 @@ class CS2Pipeline(BasePipeline):
                 last_round,
             )
         else:
-            logger.warning("[round_detector] Could not detect rounds, using full demo data")
+            logger.warning("[GAME-ANALYSIS] [round_detector] Could not detect rounds, using full demo data")
 
         # ======================================================================
         # Build authoritative rounds timeline from demo data
@@ -111,12 +111,12 @@ class CS2Pipeline(BasePipeline):
                 pov_player=filtered_replay_data.get("pov_player"),
             )
             logger.info(
-                f"[pipeline] Using DEMO-BASED rounds timeline: {len(demo_rounds_timeline)} rounds "
+                f"[GAME-ANALYSIS] Using DEMO-BASED rounds timeline: {len(demo_rounds_timeline)} rounds "
                 f"(rounds {demo_rounds_timeline[0]['round']}-{demo_rounds_timeline[-1]['round']})"
             )
         else:
             logger.warning(
-                "[pipeline] No demo data available - rounds timeline will come from LLM (less reliable)"
+                "[GAME-ANALYSIS] No demo data available - rounds timeline will come from LLM (less reliable)"
             )
         # Store in filtered_replay_data for agents to use
         filtered_replay_data["rounds_timeline_demo"] = demo_rounds_timeline
@@ -124,10 +124,10 @@ class CS2Pipeline(BasePipeline):
         # ======================================================================
         # Step 1: Observer - Multi-angle analysis
         # ======================================================================
-        logger.info("\n" + "=" * 60)
-        logger.info("[1/2] OBSERVER - Multi-Angle Analysis")
-        logger.info("    Perspectives: Exploitable Patterns, Rank-Up Habits, Missed Adaptations")
-        logger.info("=" * 60)
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
+        logger.info("[GAME-ANALYSIS] [1/2] OBSERVER - Multi-Angle Analysis")
+        logger.info("[GAME-ANALYSIS] Perspectives: Exploitable Patterns, Rank-Up Habits, Missed Adaptations")
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
         step_start = time.time()
 
         observer = CS2ObserverAgent(
@@ -140,18 +140,16 @@ class CS2Pipeline(BasePipeline):
         observer_output, observer_interaction_id = await observer.process({})
 
         observer_time = time.time() - step_start
-        logger.info(f"[observer] Complete in {observer_time:.1f}s")
-        logger.info(f"[observer] -> {len(observer_output.tips)} tips generated")
+        logger.info(f"[GAME-ANALYSIS] [observer] Complete in {observer_time:.1f}s")
+        logger.info(f"[GAME-ANALYSIS] [observer] -> {len(observer_output.tips)} tips generated")
 
         # ======================================================================
         # Step 2: Validator - Cross-check and confidence scoring
         # ======================================================================
-        logger.info("\n" + "=" * 60)
-        logger.info("[2/2] VALIDATOR - Cross-Check & Confidence Scoring")
-        logger.info("    Step 1: Video cross-check (5s before/after each timestamp)")
-        logger.info("    Step 2: Verify POV player actions")
-        logger.info("    Keeping tips with confidence >= 8")
-        logger.info("=" * 60)
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
+        logger.info("[GAME-ANALYSIS] [2/2] VALIDATOR - Cross-Check & Confidence Scoring")
+        logger.info("[GAME-ANALYSIS] Keeping tips with confidence >= 8")
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
         step_start = time.time()
 
         validator = CS2ValidatorAgent(
@@ -166,8 +164,8 @@ class CS2Pipeline(BasePipeline):
         )
 
         validator_time = time.time() - step_start
-        logger.info(f"[validator] Complete in {validator_time:.1f}s")
-        logger.info(f"[validator] -> {len(final_output.tips)} tips verified")
+        logger.info(f"[GAME-ANALYSIS] [validator] Complete in {validator_time:.1f}s")
+        logger.info(f"[GAME-ANALYSIS] [validator] -> {len(final_output.tips)} tips verified")
 
         # ======================================================================
         # Pipeline Complete
@@ -185,15 +183,15 @@ class CS2Pipeline(BasePipeline):
             "video_rounds": filtered_replay_data.get("video_rounds"),
         })
 
-        logger.info("\n" + "=" * 60)
-        logger.info("CS2 PIPELINE COMPLETE")
-        logger.info("=" * 60)
-        logger.info(f"    Total time: {total_time:.1f}s")
-        logger.info(f"    Round detection: {round_detection_time:.1f}s")
-        logger.info(f"    Observer: {len(observer_output.tips)} tips in {observer_time:.1f}s")
-        logger.info(f"    Validator: {len(final_output.tips)} tips verified in {validator_time:.1f}s")
-        logger.info(f"    Final tips: {len(final_output.tips)}")
-        logger.info("=" * 60)
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
+        logger.info("[GAME-ANALYSIS] CS2 PIPELINE COMPLETE")
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
+        logger.info(f"[GAME-ANALYSIS] Total time: {total_time:.1f}s")
+        logger.info(f"[GAME-ANALYSIS] Round detection: {round_detection_time:.1f}s")
+        logger.info(f"[GAME-ANALYSIS] Observer: {len(observer_output.tips)} tips in {observer_time:.1f}s")
+        logger.info(f"[GAME-ANALYSIS] Validator: {len(final_output.tips)} tips verified in {validator_time:.1f}s")
+        logger.info(f"[GAME-ANALYSIS] Final tips: {len(final_output.tips)}")
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
 
         # Convert to generic PipelineOutput
         # Use demo-built timeline (deterministic) instead of LLM-detected timeline

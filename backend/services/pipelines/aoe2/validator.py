@@ -126,22 +126,22 @@ class AoE2ValidatorAgent(BaseAgent):
             AoE2PipelineOutput with verified tips and summary
         """
         logger.info(
-            f"[{self.name}] Starting verification of {len(observer_output.tips)} tips"
+            f"[GAME-ANALYSIS] [{self.name}] Starting verification of {len(observer_output.tips)} tips"
         )
 
         # Build verification prompt
         system_prompt = self._get_verification_system_prompt()
         user_prompt = self._build_verification_prompt(observer_output)
 
-        logger.info(f"[{self.name}] System prompt: {len(system_prompt)} chars")
-        logger.info(f"[{self.name}] User prompt: {len(user_prompt)} chars")
+        logger.info(f"[GAME-ANALYSIS] [{self.name}] System prompt: {len(system_prompt)} chars")
+        logger.info(f"[GAME-ANALYSIS] [{self.name}] User prompt: {len(user_prompt)} chars")
 
         # Build input content
         # When chaining from Observer, video is already in server context — no need to re-send
         if previous_interaction_id:
             input_content = [{"type": "text", "text": user_prompt}]
             logger.info(
-                f"[{self.name}] Chaining from Observer interaction "
+                f"[GAME-ANALYSIS] [{self.name}] Chaining from Observer interaction "
                 f"(video already in context, not re-sending)"
             )
         elif self.video_file:
@@ -153,23 +153,25 @@ class AoE2ValidatorAgent(BaseAgent):
                     "mime_type": "video/mp4",
                 },
             ]
-            logger.info(f"[{self.name}] Including video: {self.video_file.uri}")
+            logger.info(f"[GAME-ANALYSIS] [{self.name}] Including video: {self.video_file.uri}")
         else:
             input_content = [{"type": "text", "text": user_prompt}]
 
-        # Call the model with structured output schema
+        # Call the model with structured output
+        # Interactions API: response_mime_type and response_format are top-level params,
+        # not inside generation_config
         generation_config = {
             "thinking_level": self.thinking_level,
-            "response_mime_type": "application/json",
-            "response_schema": self._verification_schema,
         }
-        logger.info(f"[{self.name}] Using structured output with response_schema")
+        logger.info(f"[GAME-ANALYSIS] [{self.name}] Using structured output with response_format")
 
         interaction_params = {
             "model": os.getenv("GEMINI_MODEL", "gemini-3-pro-preview"),
             "input": input_content,
             "system_instruction": system_prompt,
             "generation_config": generation_config,
+            "response_mime_type": "application/json",
+            "response_format": self._verification_schema,
         }
         if previous_interaction_id:
             interaction_params["previous_interaction_id"] = previous_interaction_id
@@ -187,7 +189,7 @@ class AoE2ValidatorAgent(BaseAgent):
                     if hasattr(part, "text"):
                         response_text += part.text
 
-        logger.info(f"[{self.name}] Verification response: {len(response_text)} chars")
+        logger.info(f"[GAME-ANALYSIS] [{self.name}] Verification response: {len(response_text)} chars")
 
         # Parse the response
         validator_output = self._parse_verification_response(response_text)
@@ -206,7 +208,7 @@ class AoE2ValidatorAgent(BaseAgent):
         )
 
         logger.info(
-            f"[{self.name}] Verification complete: "
+            f"[GAME-ANALYSIS] [{self.name}] Verification complete: "
             f"{len(validator_output.verified_tips)} verified, "
             f"{len(validator_output.removed_tips)} removed"
         )
@@ -480,7 +482,7 @@ Return your verification as JSON.
         data = self._extract_json(response_text)
 
         if not data:
-            logger.warning(f"[{self.name}] Could not parse verification JSON")
+            logger.warning(f"[GAME-ANALYSIS] [{self.name}] Could not parse verification JSON")
             return AoE2ValidatorOutput(
                 verified_tips=[],
                 removed_tips=[],
@@ -512,11 +514,11 @@ Return your verification as JSON.
                     )
                 )
                 logger.info(
-                    f"[{self.name}] Verified: {tip.get('id', '?')} "
+                    f"[GAME-ANALYSIS] [{self.name}] Verified: {tip.get('id', '?')} "
                     f"(confidence={tip.get('confidence', '?')})"
                 )
             except Exception as e:
-                logger.warning(f"[{self.name}] Error parsing verified tip: {e}")
+                logger.warning(f"[GAME-ANALYSIS] [{self.name}] Error parsing verified tip: {e}")
 
         # Parse removed tips
         removed_tips = []
@@ -530,10 +532,10 @@ Return your verification as JSON.
                     )
                 )
                 logger.info(
-                    f"[{self.name}] Removed: {tip.get('id', '?')} - {tip.get('reason', '?')}"
+                    f"[GAME-ANALYSIS] [{self.name}] Removed: {tip.get('id', '?')} - {tip.get('reason', '?')}"
                 )
             except Exception as e:
-                logger.warning(f"[{self.name}] Error parsing removed tip: {e}")
+                logger.warning(f"[GAME-ANALYSIS] [{self.name}] Error parsing removed tip: {e}")
 
         # Get summary
         summary_text = data.get("summary_text", "Analysis complete.")

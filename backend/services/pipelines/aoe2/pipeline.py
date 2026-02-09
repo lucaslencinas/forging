@@ -60,18 +60,18 @@ class AoE2Pipeline(BasePipeline):
         """
         start_time = time.time()
 
-        logger.info("=" * 60)
-        logger.info("AOE2 PIPELINE STARTING")
-        logger.info("=" * 60)
-        logger.info(f"    Video: {self.video_file.name}")
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
+        logger.info("[GAME-ANALYSIS] AOE2 PIPELINE STARTING")
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
+        logger.info(f"[GAME-ANALYSIS] Video: {self.video_file.name}")
 
         # ======================================================================
         # Step 1: Observer - Multi-angle analysis
         # ======================================================================
-        logger.info("\n" + "=" * 60)
-        logger.info("[1/2] OBSERVER - Multi-Angle Analysis")
-        logger.info("    Perspectives: Exploitable Patterns, Rank-Up Habits, Missed Adaptations")
-        logger.info("=" * 60)
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
+        logger.info("[GAME-ANALYSIS] [1/2] OBSERVER - Multi-Angle Analysis")
+        logger.info("[GAME-ANALYSIS] Perspectives: Exploitable Patterns, Rank-Up Habits, Missed Adaptations")
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
         step_start = time.time()
 
         observer = AoE2ObserverAgent(
@@ -84,18 +84,16 @@ class AoE2Pipeline(BasePipeline):
         observer_output, observer_interaction_id = await observer.process({})
 
         observer_time = time.time() - step_start
-        logger.info(f"[observer] Complete in {observer_time:.1f}s")
-        logger.info(f"[observer] -> {len(observer_output.tips)} tips generated")
+        logger.info(f"[GAME-ANALYSIS] [observer] Complete in {observer_time:.1f}s")
+        logger.info(f"[GAME-ANALYSIS] [observer] -> {len(observer_output.tips)} tips generated")
 
         # ======================================================================
         # Step 2: Validator - Cross-check and confidence scoring
         # ======================================================================
-        logger.info("\n" + "=" * 60)
-        logger.info("[2/2] VALIDATOR - Cross-Check & Confidence Scoring")
-        logger.info("    Step 1: Video cross-check (5s before/after each timestamp)")
-        logger.info("    Step 2: Verify against replay data")
-        logger.info("    Keeping tips with confidence >= 8")
-        logger.info("=" * 60)
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
+        logger.info("[GAME-ANALYSIS] [2/2] VALIDATOR - Cross-Check & Confidence Scoring")
+        logger.info("[GAME-ANALYSIS] Keeping tips with confidence >= 8")
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
         step_start = time.time()
 
         validator = AoE2ValidatorAgent(
@@ -110,8 +108,8 @@ class AoE2Pipeline(BasePipeline):
         )
 
         validator_time = time.time() - step_start
-        logger.info(f"[validator] Complete in {validator_time:.1f}s")
-        logger.info(f"[validator] -> {len(final_output.tips)} tips verified")
+        logger.info(f"[GAME-ANALYSIS] [validator] Complete in {validator_time:.1f}s")
+        logger.info(f"[GAME-ANALYSIS] [validator] -> {len(final_output.tips)} tips verified")
 
         # ======================================================================
         # Pipeline Complete
@@ -127,14 +125,14 @@ class AoE2Pipeline(BasePipeline):
             "final_tips_count": len(final_output.tips),
         })
 
-        logger.info("\n" + "=" * 60)
-        logger.info("AOE2 PIPELINE COMPLETE")
-        logger.info("=" * 60)
-        logger.info(f"    Total time: {total_time:.1f}s")
-        logger.info(f"    Observer: {len(observer_output.tips)} tips in {observer_time:.1f}s")
-        logger.info(f"    Validator: {len(final_output.tips)} tips verified in {validator_time:.1f}s")
-        logger.info(f"    Final tips: {len(final_output.tips)}")
-        logger.info("=" * 60)
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
+        logger.info("[GAME-ANALYSIS] AOE2 PIPELINE COMPLETE")
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
+        logger.info(f"[GAME-ANALYSIS] Total time: {total_time:.1f}s")
+        logger.info(f"[GAME-ANALYSIS] Observer: {len(observer_output.tips)} tips in {observer_time:.1f}s")
+        logger.info(f"[GAME-ANALYSIS] Validator: {len(final_output.tips)} tips verified in {validator_time:.1f}s")
+        logger.info(f"[GAME-ANALYSIS] Final tips: {len(final_output.tips)}")
+        logger.info("[GAME-ANALYSIS] " + "=" * 50)
 
         # Convert to generic PipelineOutput
         return PipelineOutput(
