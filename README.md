@@ -51,11 +51,11 @@ flowchart TD
     FileAPI --> Observer
 
     subgraph Pipeline ["2-Agent Analysis Pipeline"]
-        Observer["Observer Agent\n(Gemini 3 Pro)\nvideo + replay + thinking=high\nstructured output"] -- "interaction_id" --> Validator["Validator Agent\n(Gemini 3 Pro)\nchained context + thinking=high\nstructured output"]
+        Observer["Observer Agent<br/>(Gemini 3 Pro)<br/>video + replay + thinking=high<br/>structured output"] -- "interaction_id" --> Validator["Validator Agent<br/>(Gemini 3 Pro)<br/>chained context + thinking=high<br/>structured output"]
     end
 
-    Validator --> TTS["TTS Generation\n(Gemini 2.5 Flash TTS)\nCharon voice → MP3"]
-    Validator -- "interaction_id" --> Chat["Follow-up Chat\n(Gemini 3 Pro)\nvideo still in context"]
+    Validator --> TTS["TTS Generation<br/>(Gemini 2.5 Flash TTS)<br/>Charon voice → MP3"]
+    Validator -- "interaction_id" --> Chat["Follow-up Chat<br/>(Gemini 3 Pro)<br/>video still in context"]
 
     Validator --> Results["Firestore + GCS"]
     TTS --> Results
