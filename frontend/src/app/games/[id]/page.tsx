@@ -9,6 +9,7 @@ import { TipsStreamV2 } from "@/components/games/TipsStreamV2";
 import { AgeProgressionV2 } from "@/components/games/AgeProgressionV2";
 import { RoundsProgressionV2 } from "@/components/games/RoundsProgressionV2";
 import { AnalysisPendingView } from "@/components/games/AnalysisPendingView";
+import { useVoiceCoaching } from "@/hooks/useVoiceCoaching";
 import type { components } from "@/types/api";
 
 type AnalysisDetailResponse = components["schemas"]["AnalysisDetailResponse"];
@@ -26,6 +27,8 @@ export default function GameAnalysisPageV2() {
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [isDesktop, setIsDesktop] = useState(true);
   const [isPolling, setIsPolling] = useState(false);
+
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
 
   const videoRef = useRef<VideoPlayerV2Ref>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -178,6 +181,15 @@ export default function GameAnalysisPageV2() {
     if (!analysis?.tips) return [];
     return analysis.tips.filter((t) => Math.abs(t.timestamp_seconds - currentTime) < 5);
   }, [analysis?.tips, currentTime]);
+
+  // Voice coaching
+  const audioUrls = analysis?.audio_urls ?? [];
+  const hasAudio = audioUrls.length > 0;
+  const voiceTips = useMemo(
+    () => (analysis?.tips ?? []).map((t) => ({ timestamp_seconds: t.timestamp_seconds, tip: t.tip })),
+    [analysis?.tips]
+  );
+  useVoiceCoaching(voiceTips, audioUrls, currentTime, voiceEnabled);
 
   // Show loading state
   if (!analysis) {
@@ -404,6 +416,24 @@ export default function GameAnalysisPageV2() {
           <div className="absolute top-2 right-2 z-20 pointer-events-auto">
             <TipsStreamV2 tips={nearbyTips} />
           </div>
+
+          {/* Voice coaching toggle */}
+          {hasAudio && (
+            <button
+              onClick={() => setVoiceEnabled(!voiceEnabled)}
+              className={`absolute top-2 left-2 z-20 flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors ${
+                voiceEnabled
+                  ? "bg-amber-500 text-white"
+                  : "bg-black/50 text-white/70 hover:bg-black/70 hover:text-white"
+              }`}
+              title={voiceEnabled ? "Voice coaching ON" : "Voice coaching OFF"}
+            >
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z" />
+              </svg>
+              <span className="hidden sm:inline">{voiceEnabled ? "Voice On" : "Voice Off"}</span>
+            </button>
+          )}
         </div>
 
         {/* Age Progression (for AoE2 - below video) */}
