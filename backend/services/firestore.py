@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Optional
 
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 from google.auth import default, impersonated_credentials
 from google.oauth2.credentials import Credentials as OAuthCredentials
 
@@ -179,13 +180,13 @@ async def list_analyses(
     query = client.collection(ANALYSES_COLLECTION)
 
     if public_only:
-        query = query.where("is_public", "==", True)
+        query = query.where(filter=FieldFilter("is_public", "==", True))
 
     if completed_only:
-        query = query.where("status", "==", "complete")
+        query = query.where(filter=FieldFilter("status", "==", "complete"))
 
     if game_type:
-        query = query.where("game_type", "==", game_type)
+        query = query.where(filter=FieldFilter("game_type", "==", game_type))
 
     query = query.order_by("created_at", direction=firestore.Query.DESCENDING)
     query = query.limit(limit)

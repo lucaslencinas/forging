@@ -5,7 +5,7 @@ export function Footer() {
         <div className="flex flex-col items-center justify-between gap-8 md:flex-row md:items-start">
           <div className="text-center md:text-left">
             <div className="flex items-center gap-3 justify-center md:justify-start">
-              <span className="text-2xl font-bold tracking-tighter text-amber-500">FORGING</span>
+              <span className="text-2xl font-mono font-bold tracking-tighter text-amber-500">FORGING</span>
             </div>
             <p className="mt-2 text-sm text-zinc-500 max-w-xs">
               AI-Powered Game Coaching - Level up faster with precision analysis

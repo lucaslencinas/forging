@@ -81,7 +81,7 @@ class AoE2Pipeline(BasePipeline):
             game_type="aoe2",
         )
 
-        observer_output, _ = await observer.process({})
+        observer_output, observer_interaction_id = await observer.process({})
 
         observer_time = time.time() - step_start
         logger.info(f"[observer] Complete in {observer_time:.1f}s")
@@ -104,7 +104,10 @@ class AoE2Pipeline(BasePipeline):
             replay_data=self.replay_data,
         )
 
-        final_output = await validator.verify(observer_output)
+        final_output = await validator.verify(
+            observer_output,
+            previous_interaction_id=observer_interaction_id,
+        )
 
         validator_time = time.time() - step_start
         logger.info(f"[validator] Complete in {validator_time:.1f}s")
@@ -141,6 +144,7 @@ class AoE2Pipeline(BasePipeline):
                 **final_output.pipeline_metadata,
                 "observer_output": observer_output.model_dump(),
             },
+            last_interaction_id=final_output.last_interaction_id,
         )
 
     def to_api_response(self, output: PipelineOutput) -> dict:

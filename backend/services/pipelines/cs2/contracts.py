@@ -130,3 +130,6 @@ class CS2PipelineOutput(BaseModel):
     pipeline_metadata: dict = Field(
         default_factory=dict, description="Pipeline execution stats"
     )
+    last_interaction_id: Optional[str] = Field(
+        None, description="Last Gemini interaction ID for chat chaining"
+    )

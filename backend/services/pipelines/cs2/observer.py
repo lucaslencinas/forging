@@ -35,6 +35,45 @@ class CS2ObserverAgent(BaseAgent):
     thinking_level = "high"
     include_thoughts = False
 
+    # Structured output schema for native JSON enforcement
+    response_schema = {
+        "type": "object",
+        "properties": {
+            "tips": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "timestamp": {
+                            "type": "object",
+                            "properties": {
+                                "video_seconds": {"type": "integer"},
+                                "display": {"type": "string"},
+                            },
+                            "required": ["video_seconds", "display"],
+                        },
+                        "category": {"type": "string"},
+                        "severity": {"type": "string"},
+                        "observation": {"type": "string"},
+                        "why_it_matters": {"type": "string"},
+                        "fix": {"type": "string"},
+                        "reasoning": {"type": "string"},
+                        "recurring_timestamps": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                    },
+                    "required": [
+                        "id", "timestamp", "category", "severity",
+                        "observation", "why_it_matters", "fix",
+                    ],
+                },
+            },
+        },
+        "required": ["tips"],
+    }
+
     def get_system_prompt(self) -> str:
         """Get the CS2-specific system prompt."""
         return """You are a CS2 gameplay analyst. Watch this video and provide comprehensive feedback.

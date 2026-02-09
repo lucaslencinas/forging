@@ -19,6 +19,9 @@ class PipelineOutput(BaseModel):
     tips: list[Any] = Field(default_factory=list, description="Game-specific tip type")
     summary_text: str = Field(default="", description="100-300 char summary for TTS")
     metadata: dict = Field(default_factory=dict, description="Pipeline execution stats")
+    last_interaction_id: Optional[str] = Field(
+        None, description="Last Gemini interaction ID for chat chaining"
+    )
 
 
 class BasePipeline(ABC):

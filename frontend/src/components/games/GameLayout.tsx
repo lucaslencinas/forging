@@ -20,7 +20,7 @@ export function GameLayout({ children }: GameLayoutProps) {
       <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 border-b border-zinc-800/50 bg-zinc-950/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <span className="text-2xl font-bold tracking-tighter text-amber-500">FORGING</span>
+            <span className="text-2xl font-mono font-bold tracking-tighter text-amber-500">FORGING</span>
             <span className="hidden sm:block text-xs text-zinc-500 border-l border-zinc-700 pl-3">
               AI-Powered Game Coaching
             </span>

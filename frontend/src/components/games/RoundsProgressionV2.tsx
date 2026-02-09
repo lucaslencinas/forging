@@ -24,10 +24,10 @@ export function RoundsProgressionV2({
     return null;
   }
 
-  // Calculate total duration from first round start to last round end
+  // Calculate total duration as sum of all round durations
+  // This ensures segments fill 100% of the bar width
   const totalDuration = useMemo(() => {
-    const lastRound = rounds[rounds.length - 1];
-    return lastRound.end_seconds;
+    return rounds.reduce((sum, r) => sum + (r.end_seconds - r.start_seconds), 0);
   }, [rounds]);
 
   // Count wins and losses based on status field

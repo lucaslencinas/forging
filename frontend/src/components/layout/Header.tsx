@@ -42,7 +42,7 @@ export function Header({ showCTAOnScroll = false, transparentUntilScroll = false
     <header className={`sticky top-0 z-50 px-6 py-4 transition-all duration-300 ${headerBg}`}>
       <div className="mx-auto flex max-w-6xl items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
-          <span className="text-2xl font-bold tracking-tighter text-amber-500">FORGING</span>
+          <span className="text-2xl font-mono font-bold tracking-tighter text-amber-500">FORGING</span>
           <span className="hidden sm:block text-xs text-zinc-500 border-l border-zinc-700 pl-3">
             AI-Powered Game Coaching
           </span>

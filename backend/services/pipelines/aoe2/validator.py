@@ -44,6 +44,54 @@ class AoE2ValidatorAgent(BaseAgent):
     thinking_level = "high"
     include_thoughts = False
 
+    # Structured output schema for native JSON enforcement
+    _verification_schema = {
+        "type": "object",
+        "properties": {
+            "verified_tips": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "timestamp": {
+                            "type": "object",
+                            "properties": {
+                                "video_seconds": {"type": "integer"},
+                                "display": {"type": "string"},
+                            },
+                            "required": ["video_seconds", "display"],
+                        },
+                        "category": {"type": "string"},
+                        "severity": {"type": "string"},
+                        "tip_text": {"type": "string"},
+                        "source": {"type": "string"},
+                        "confidence": {"type": "integer"},
+                        "verification_notes": {"type": "string"},
+                    },
+                    "required": [
+                        "id", "timestamp", "category", "severity",
+                        "tip_text", "source", "confidence",
+                    ],
+                },
+            },
+            "removed_tips": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "reason": {"type": "string"},
+                        "confidence": {"type": "integer"},
+                    },
+                    "required": ["id", "reason", "confidence"],
+                },
+            },
+            "summary_text": {"type": "string"},
+        },
+        "required": ["verified_tips", "removed_tips", "summary_text"],
+    }
+
     def __init__(self, *args, **kwargs):
         """Initialize with AoE2 game type."""
         super().__init__(*args, game_type="aoe2", **kwargs)
@@ -60,12 +108,19 @@ class AoE2ValidatorAgent(BaseAgent):
         """Not used - Validator uses custom verify method."""
         return None
 
-    async def verify(self, observer_output: AoE2ObserverOutput) -> AoE2PipelineOutput:
+    async def verify(
+        self,
+        observer_output: AoE2ObserverOutput,
+        previous_interaction_id: str | None = None,
+    ) -> AoE2PipelineOutput:
         """
         Verify tips from the Observer and return final output.
 
         Args:
             observer_output: Output from the AoE2 Observer agent
+            previous_interaction_id: Observer's interaction ID for context chaining.
+                When provided, Gemini has the full Observer context (video, prompts,
+                response) server-side, so we don't need to re-send the video.
 
         Returns:
             AoE2PipelineOutput with verified tips and summary
@@ -81,8 +136,15 @@ class AoE2ValidatorAgent(BaseAgent):
         logger.info(f"[{self.name}] System prompt: {len(system_prompt)} chars")
         logger.info(f"[{self.name}] User prompt: {len(user_prompt)} chars")
 
-        # Build content with video
-        if self.video_file:
+        # Build input content
+        # When chaining from Observer, video is already in server context — no need to re-send
+        if previous_interaction_id:
+            input_content = [{"type": "text", "text": user_prompt}]
+            logger.info(
+                f"[{self.name}] Chaining from Observer interaction "
+                f"(video already in context, not re-sending)"
+            )
+        elif self.video_file:
             input_content = [
                 {"type": "text", "text": user_prompt},
                 {
@@ -95,15 +157,24 @@ class AoE2ValidatorAgent(BaseAgent):
         else:
             input_content = [{"type": "text", "text": user_prompt}]
 
-        # Call the model
-        interaction = self.client.interactions.create(
-            model=os.getenv("GEMINI_MODEL", "gemini-3-pro-preview"),
-            input=input_content,
-            system_instruction=system_prompt,
-            generation_config={
-                "thinking_level": self.thinking_level,
-            },
-        )
+        # Call the model with structured output schema
+        generation_config = {
+            "thinking_level": self.thinking_level,
+            "response_mime_type": "application/json",
+            "response_schema": self._verification_schema,
+        }
+        logger.info(f"[{self.name}] Using structured output with response_schema")
+
+        interaction_params = {
+            "model": os.getenv("GEMINI_MODEL", "gemini-3-pro-preview"),
+            "input": input_content,
+            "system_instruction": system_prompt,
+            "generation_config": generation_config,
+        }
+        if previous_interaction_id:
+            interaction_params["previous_interaction_id"] = previous_interaction_id
+
+        interaction = self.client.interactions.create(**interaction_params)
 
         # Extract response
         response_text = ""
@@ -131,6 +202,7 @@ class AoE2ValidatorAgent(BaseAgent):
                 "removed_tips_count": len(validator_output.removed_tips),
                 "removed_tips": [t.model_dump() for t in validator_output.removed_tips],
             },
+            last_interaction_id=interaction.id,
         )
 
         logger.info(

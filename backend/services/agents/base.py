@@ -35,6 +35,7 @@ class BaseAgent(ABC):
     uses_video: bool = False
     thinking_level: str = "low"  # minimal, low, medium, high
     include_thoughts: bool = False  # Expose reasoning (useful for demo)
+    response_schema: Optional[dict] = None  # JSON schema for structured output
 
     def __init__(
         self,
@@ -153,10 +154,16 @@ class BaseAgent(ABC):
                 f"[{self.name}] Chaining from previous interaction (context may accumulate)"
             )
 
-        # Build generation config with thinking level
+        # Build generation config with thinking level and optional response schema
         generation_config = {
             "thinking_level": self.thinking_level,
         }
+
+        # Add response schema for native structured output if defined
+        if self.response_schema:
+            generation_config["response_mime_type"] = "application/json"
+            generation_config["response_schema"] = self.response_schema
+            logger.info(f"[{self.name}] Using structured output with response_schema")
 
         # Build input content
         # Interactions API requires explicit type fields
