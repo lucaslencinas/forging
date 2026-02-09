@@ -657,9 +657,10 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
             await update_stage("generating_audio")
             try:
                 from services.tts import generate_tips_audio
-                logger.info(f"[GAME-ANALYSIS] [{analysis_id}] Generating TTS audio for {len(result.tips)} tips...")
+                tts_tips = result.tips[:3]  # Limit to first 3 tips to avoid TTS rate limits
+                logger.info(f"[GAME-ANALYSIS] [{analysis_id}] Generating TTS audio for {len(tts_tips)}/{len(result.tips)} tips...")
                 audio_object_names = generate_tips_audio(
-                    [{"tip": tip.tip} for tip in result.tips],
+                    [{"tip": tip.tip} for tip in tts_tips],
                     analysis_id
                 )
                 logger.info(f"[GAME-ANALYSIS] [{analysis_id}] Generated {len(audio_object_names)} audio files")
