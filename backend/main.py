@@ -18,6 +18,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Silence noisy third-party loggers — only show their warnings and errors
+for _lib in ["httpcore", "httpx", "urllib3", "google.auth", "google.api_core",
+             "google.auth.transport", "google.cloud", "grpc"]:
+    logging.getLogger(_lib).setLevel(logging.WARNING)
+
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
