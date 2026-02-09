@@ -582,6 +582,7 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
         )
 
         # Extract player names and game info from replay data
+        pov_player = request_data.get("pov_player")
         players = []
         map_name = None
         duration = None
@@ -591,26 +592,28 @@ async def run_analysis_background(analysis_id: str, request_data: dict):
             map_name = summary.get("map")
             duration = summary.get("duration")
 
+            # Put POV player first in the players list
+            if pov_player:
+                pov_lower = pov_player.lower()
+                players = (
+                    [n for n in players if n.lower() == pov_lower]
+                    + [n for n in players if n.lower() != pov_lower]
+                )
+
         # Generate title if not provided
         title = request_data.get("title")
         if not title:
-            pov_player = request_data.get("pov_player")
             if pov_player and game_type == "cs2" and replay_data and "summary" in replay_data:
-                # Build title like "lucasdemoreno CT / T on Mirage"
+                # Build title like "lucasdemoreno CT on Mirage"
                 summary_data = replay_data["summary"]
-                pov_sides = ""
+                starting_side = ""
                 for p in summary_data.get("players", []):
                     if p.get("name", "").lower() == pov_player.lower():
-                        sides_played = p.get("sides_played", [])
                         starting_side = p.get("starting_side", "")
-                        if sides_played:
-                            pov_sides = " / ".join(sides_played)
-                        elif starting_side:
-                            pov_sides = starting_side
                         break
                 title = pov_player
-                if pov_sides:
-                    title += f" {pov_sides}"
+                if starting_side:
+                    title += f" {starting_side.upper()}"
                 if map_name:
                     # Clean up map name (remove "de_" prefix)
                     clean_map = map_name.replace("de_", "").replace("cs_", "").title()
@@ -753,6 +756,7 @@ async def create_analysis(
         "game_type": request.game_type,
         "title": request.title or f"{request.game_type.upper()} Analysis",
         "creator_name": request.creator_name,
+        "pov_player": request.pov_player,
         "video_object_name": request.video_object_name,
         "replay_object_name": request.replay_object_name,
         "is_public": request.is_public,
